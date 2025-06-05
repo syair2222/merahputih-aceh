@@ -336,41 +336,66 @@ export default function RegistrationForm() {
         return (
           <div className="space-y-4">
             <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="nik" render={({ field }) => (
+            <FormField
+              control={form.control}
+              name="nik"
+              render={({ field: { name, onBlur, onChange, ref, value }  }) => (
               <FormItem>
                 <FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
                     placeholder="16 digit NIK"
-                    name={field.name}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    ref={field.ref}
-                    value={field.value ?? ''}
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="kk" render={({ field }) => (
+            <FormField
+              control={form.control}
+              name="kk"
+              render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel>
                 <FormControl>
                   <Input 
                     type="number" 
                     placeholder="16 digit Nomor KK" 
-                    name={field.name}
-                    onBlur={field.onBlur}
-                    onChange={field.onChange}
-                    ref={field.ref}
-                    value={field.value ?? ''} 
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''} 
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="birthPlace" render={({ field }) => (<FormItem><FormLabel>Tempat Lahir</FormLabel><FormControl><Input placeholder="Kota Kelahiran" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField
+              control={form.control}
+              name="birthPlace"
+              render={({ field: { name, onBlur, onChange, ref, value } }) => (
+                <FormItem>
+                  <FormLabel>Tempat Lahir</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Kota Kelahiran"
+                      name={name}
+                      onBlur={onBlur}
+                      onChange={onChange}
+                      ref={ref}
+                      value={value ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="birthDate"
@@ -643,3 +668,4 @@ export default function RegistrationForm() {
   );
 }
 
+    
