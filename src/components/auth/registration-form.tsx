@@ -106,15 +106,21 @@ const registrationSchema = z.object({
   message: "Dokumen usaha wajib diupload jika mendaftar sebagai produsen/UMKM.",
   path: ["businessDocument"],
 })
-.refine(data => { // Specific refinement for domicileProof if it's an image
-    if (data.domicileProof && data.domicileProof[0] && !ACCEPTED_IMAGE_TYPES.includes(data.domicileProof[0].type) && data.domicileProof[0].type !== 'application/pdf') {
+.refine(data => { // Specific refinement for domicileProof
+    if (data.domicileProof && data.domicileProof[0]) {
+      const fileType = data.domicileProof[0].type;
+      if (!ACCEPTED_IMAGE_TYPES.includes(fileType) && fileType !== 'application/pdf') {
         return false;
+      }
     }
     return true;
 }, { message: "Format Bukti Domisili hanya JPG, PNG, WEBP, atau PDF.", path: ["domicileProof"] })
-.refine(data => { // Specific refinement for businessDocument if it's an image
-    if (data.businessDocument && data.businessDocument[0] && !ACCEPTED_IMAGE_TYPES.includes(data.businessDocument[0].type) && data.businessDocument[0].type !== 'application/pdf') {
+.refine(data => { // Specific refinement for businessDocument
+    if (data.businessDocument && data.businessDocument[0]) {
+       const fileType = data.businessDocument[0].type;
+      if (!ACCEPTED_IMAGE_TYPES.includes(fileType) && fileType !== 'application/pdf') {
         return false;
+      }
     }
     return true;
 }, { message: "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF.", path: ["businessDocument"] });
@@ -435,33 +441,33 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             <FormField
-                control={form.control}
-                name="businessFields"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
-                    {BusinessFieldsOptions.map((item) => (
-                      <FormItem key={item} className="flex flex-row items-start space-x-3 space-y-0 my-2">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value?.includes(item)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentValues, item]);
-                              } else {
-                                field.onChange(currentValues.filter((value) => value !== item));
-                              }
-                            }}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">{item}</FormLabel>
-                      </FormItem>
-                    ))}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              control={form.control}
+              name="businessFields"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
+                  {BusinessFieldsOptions.map((item) => (
+                    <FormItem key={item} className="flex flex-row items-start space-x-3 space-y-0 my-2">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes(item)}
+                          onCheckedChange={(checked) => {
+                            const currentValues = field.value || [];
+                            if (checked) {
+                              field.onChange([...currentValues, item]);
+                            } else {
+                              field.onChange(currentValues.filter((value) => value !== item));
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">{item}</FormLabel>
+                    </FormItem>
+                  ))}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             {form.watch('businessFields')?.includes('Lainnya') && (
                 <FormField control={form.control} name="otherBusinessField" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya (Isian Bebas)</FormLabel><FormControl><Textarea placeholder="Sebutkan bidang usaha lainnya" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             )}
@@ -606,4 +612,3 @@ export default function RegistrationForm() {
     </Form>
   );
 }
-

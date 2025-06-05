@@ -108,7 +108,7 @@ export default function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="contoh@email.com" {...field} />
+                <Input placeholder="contoh@email.com" {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -126,6 +126,7 @@ export default function LoginForm() {
                     type={showPassword ? "text" : "password"} 
                     placeholder="******" 
                     {...field} 
+                    value={field.value ?? ''}
                   />
                   <Button 
                     type="button" 
