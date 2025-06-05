@@ -3,7 +3,7 @@
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import type { ReactNode } from 'react';
 import React, { createContext, useEffect, useState } from 'react';
 
@@ -33,34 +33,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({ ...firebaseUser, role: userData.role } as UserProfile);
+        let userProfileData: UserProfile = { ...firebaseUser } as UserProfile;
+        
+        const predefinedAdminEmails: Record<string, { role: UserProfile['role'], displayName: string }> = {
+          'muhammad.nazir.syair@example.com': { role: 'admin_utama', displayName: 'Muhammad Nazir Syair (Admin)' },
+          'sekertaris@example.com': { role: 'sekertaris', displayName: 'Sekertaris Koperasi' },
+          'bendahara@example.com': { role: 'bendahara', displayName: 'Bendahara Koperasi' },
+          'dinas.koperasi@example.com': { role: 'dinas', displayName: 'Dinas Koperasi' },
+        };
 
-          // Predefined admin role setup (example - should be done securely)
-          if (firebaseUser.email === 'muhammad.nazir.syair@example.com' && !userData.role) {
-             await setDoc(userDocRef, { role: 'admin_utama', email: firebaseUser.email, displayName: 'Muhammad Nazir Syair (Admin)' }, { merge: true });
-             setUser({ ...firebaseUser, role: 'admin_utama' } as UserProfile);
-          } else if (firebaseUser.email === 'sekertaris@example.com' && !userData.role) {
-            await setDoc(userDocRef, { role: 'sekertaris', email: firebaseUser.email, displayName: 'Sekertaris Koperasi' }, { merge: true });
-            setUser({ ...firebaseUser, role: 'sekertaris' } as UserProfile);
-          } else if (firebaseUser.email === 'bendahara@example.com' && !userData.role) {
-            await setDoc(userDocRef, { role: 'bendahara', email: firebaseUser.email, displayName: 'Bendahara Koperasi' }, { merge: true });
-            setUser({ ...firebaseUser, role: 'bendahara' } as UserProfile);
-          } else if (firebaseUser.email === 'dinas.koperasi@example.com' && !userData.role) {
-            await setDoc(userDocRef, { role: 'dinas', email: firebaseUser.email, displayName: 'Dinas Koperasi' }, { merge: true });
-            setUser({ ...firebaseUser, role: 'dinas' } as UserProfile);
-          }
+        const adminConfig = firebaseUser.email ? predefinedAdminEmails[firebaseUser.email] : undefined;
 
+        if (adminConfig) {
+          // This is a predefined admin email
+          userProfileData.role = adminConfig.role;
+          userProfileData.displayName = adminConfig.displayName;
+
+          await setDoc(userDocRef, {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            role: adminConfig.role,
+            displayName: adminConfig.displayName,
+            photoURL: firebaseUser.photoURL || null,
+            createdAt: serverTimestamp(),
+          }, { merge: true });
+          // Predefined admins do not fill member registration data, so no 'members' document is created/expected here.
+        
         } else {
-          // New user or user data not in Firestore yet.
-          // For registration, role will be set to 'prospective_member'.
-          // For existing Firebase Auth users without a Firestore profile, treat as basic user or prompt to complete profile.
-          // For now, if no doc, set role to prospective or default.
-           await setDoc(userDocRef, { role: 'prospective_member', email: firebaseUser.email, displayName: firebaseUser.displayName || 'Anggota Baru' }, { merge: true });
-          setUser({ ...firebaseUser, role: 'prospective_member' } as UserProfile);
+          // Not a predefined admin, handle as a regular user/member
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            userProfileData.role = userData.role;
+            // Use displayName from Firestore if available, otherwise from Firebase Auth
+            userProfileData.displayName = userData.displayName || firebaseUser.displayName;
+          } else {
+            // New user (not a predefined admin) who doesn't have a 'users' document yet.
+            // This typically means they are a prospective member who needs to complete registration.
+            // The registration form itself is responsible for creating the 'members' document
+            // and fully populating the 'users' document.
+            // Here, we set a default 'prospective_member' role for the context.
+            userProfileData.role = 'prospective_member';
+            userProfileData.displayName = firebaseUser.displayName || 'Calon Anggota'; // Or "Anggota Baru"
+            
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: 'prospective_member',
+              displayName: userProfileData.displayName,
+              photoURL: firebaseUser.photoURL || null,
+              createdAt: serverTimestamp(),
+            }, { merge: true });
+          }
         }
+        setUser(userProfileData);
       } else {
         setUser(null);
       }
