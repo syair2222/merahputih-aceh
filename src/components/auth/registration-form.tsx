@@ -187,12 +187,12 @@ export default function RegistrationForm() {
       const user = userCredential.user;
       await updateProfile(user, { displayName: data.fullName });
 
-      const ktpScanUrl = data.ktpScan?.[0] ? await uploadFile(data.ktpScan[0], `members/${user.uid}/ktpScan.${data.ktpScan[0].name.split('.').pop()}`) : undefined;
-      const kkScanUrl = data.kkScan?.[0] ? await uploadFile(data.kkScan[0], `members/${user.uid}/kkScan.${data.kkScan[0].name.split('.').pop()}`) : undefined;
-      const selfieKtpUrl = data.selfieKtp?.[0] ? await uploadFile(data.selfieKtp[0], `members/${user.uid}/selfieKtp.${data.selfieKtp[0].name.split('.').pop()}`) : undefined;
-      const pasFotoUrl = data.pasFoto?.[0] ? await uploadFile(data.pasFoto[0], `members/${user.uid}/pasFoto.${data.pasFoto[0].name.split('.').pop()}`) : undefined;
-      const domicileProofUrl = data.domicileProof?.[0] ? await uploadFile(data.domicileProof[0], `members/${user.uid}/domicileProof.${data.domicileProof[0].name.split('.').pop()}`) : undefined;
-      const businessDocumentUrl = data.businessDocument?.[0] ? await uploadFile(data.businessDocument[0], `members/${user.uid}/businessDocument.${data.businessDocument[0].name.split('.').pop()}`) : undefined;
+      const ktpScanUrl = data.ktpScan?.[0] && data.ktpScan[0] instanceof File ? await uploadFile(data.ktpScan[0], `members/${user.uid}/ktpScan.${data.ktpScan[0].name.split('.').pop()}`) : undefined;
+      const kkScanUrl = data.kkScan?.[0] && data.kkScan[0] instanceof File ? await uploadFile(data.kkScan[0], `members/${user.uid}/kkScan.${data.kkScan[0].name.split('.').pop()}`) : undefined;
+      const selfieKtpUrl = data.selfieKtp?.[0] && data.selfieKtp[0] instanceof File ? await uploadFile(data.selfieKtp[0], `members/${user.uid}/selfieKtp.${data.selfieKtp[0].name.split('.').pop()}`) : undefined;
+      const pasFotoUrl = data.pasFoto?.[0] && data.pasFoto[0] instanceof File ? await uploadFile(data.pasFoto[0], `members/${user.uid}/pasFoto.${data.pasFoto[0].name.split('.').pop()}`) : undefined;
+      const domicileProofUrl = data.domicileProof?.[0] && data.domicileProof[0] instanceof File ? await uploadFile(data.domicileProof[0], `members/${user.uid}/domicileProof.${data.domicileProof[0].name.split('.').pop()}`) : undefined;
+      const businessDocumentUrl = data.businessDocument?.[0] && data.businessDocument[0] instanceof File ? await uploadFile(data.businessDocument[0], `members/${user.uid}/businessDocument.${data.businessDocument[0].name.split('.').pop()}`) : undefined;
 
       const memberData: MemberRegistrationData = {
         userId: user.uid,
@@ -337,7 +337,23 @@ export default function RegistrationForm() {
           <div className="space-y-4">
             <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             <FormField control={form.control} name="nik" render={({ field }) => (<FormItem><FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel><FormControl><Input type="number" placeholder="16 digit NIK" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="kk" render={({ field }) => (<FormItem><FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel><FormControl><Input type="number" placeholder="16 digit Nomor KK" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="kk" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    placeholder="16 digit Nomor KK" 
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
+                    ref={field.ref}
+                    value={field.value ?? ''} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
             <FormField control={form.control} name="birthPlace" render={({ field }) => (<FormItem><FormLabel>Tempat Lahir</FormLabel><FormControl><Input placeholder="Kota Kelahiran" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             <FormField
               control={form.control}
@@ -440,7 +456,7 @@ export default function RegistrationForm() {
                 </Select><FormMessage />
               </FormItem>
             )}/>
-            <FormField
+             <FormField
               control={form.control}
               name="businessFields"
               render={({ field }) => (
@@ -453,11 +469,9 @@ export default function RegistrationForm() {
                           checked={field.value?.includes(item)}
                           onCheckedChange={(checked) => {
                             const currentValues = field.value || [];
-                            if (checked) {
-                              field.onChange([...currentValues, item]);
-                            } else {
-                              field.onChange(currentValues.filter((value) => value !== item));
-                            }
+                            return checked
+                              ? field.onChange([...currentValues, item])
+                              : field.onChange(currentValues.filter((value) => value !== item));
                           }}
                         />
                       </FormControl>
