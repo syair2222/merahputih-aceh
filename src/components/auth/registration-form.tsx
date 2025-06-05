@@ -21,14 +21,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, db, storage } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { MemberRegistrationData, MembershipType, BusinessField } from '@/types';
 import { BusinessFieldsOptions } from '@/types';
-import { CalendarIcon, Eye, EyeOff, Loader2, UploadCloud } from 'lucide-react';
+import { CalendarIcon, Eye, EyeOff, Loader2, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -39,15 +39,33 @@ import Image from 'next/image';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const ACCEPTED_PDF_TYPES = ["application/pdf"];
 
-
-const fileSchema = z.any()
-  .refine((fileList) => fileList && fileList.length > 0, "File dibutuhkan.")
-  .refine((fileList) => fileList && fileList[0]?.size <= MAX_FILE_SIZE, `Ukuran file maksimal 5MB.`)
+// Schema for validating a single File object (client-side before upload attempt)
+const singleImageFileSchema = z.instanceof(File)
+  .refine((file) => file.size <= MAX_FILE_SIZE, `Ukuran file maksimal 5MB.`)
   .refine(
-    (fileList) => fileList && ACCEPTED_IMAGE_TYPES.includes(fileList[0]?.type),
+    (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
     "Format file tidak valid. Hanya .jpg, .jpeg, .png, .webp yang diperbolehkan."
   ).optional();
+
+const singleImageOrPdfFileSchema = z.instanceof(File)
+  .refine((file) => file.size <= MAX_FILE_SIZE, `Ukuran file maksimal 5MB.`)
+  .refine(
+    (file) => ACCEPTED_IMAGE_TYPES.includes(file.type) || ACCEPTED_PDF_TYPES.includes(file.type),
+    "Format file tidak valid. Hanya JPG, PNG, WEBP, atau PDF yang diperbolehkan."
+  ).optional();
+
+// Schema for FileList (used by react-hook-form for the input field itself)
+const fileListSchema = (isRequired: boolean, acceptedTypes: string[] = ACCEPTED_IMAGE_TYPES, customError?: string) => 
+  z.any()
+    .refine((fileList) => !isRequired || (fileList && fileList.length > 0), isRequired ? "File dibutuhkan." : true)
+    .refine((fileList) => !isRequired || !fileList || fileList.length === 0 || (fileList[0]?.size <= MAX_FILE_SIZE), `Ukuran file maksimal 5MB.`)
+    .refine(
+      (fileList) => !isRequired || !fileList || fileList.length === 0 || acceptedTypes.includes(fileList[0]?.type),
+      customError || `Format file tidak valid. Hanya ${acceptedTypes.map(t => t.split('/')[1]).join(', ')} yang diperbolehkan.`
+    ).optional();
+
 
 const registrationSchema = z.object({
   // Step 0: Akun
@@ -73,9 +91,15 @@ const registrationSchema = z.object({
   // Step 2: Status Kependudukan
   isPermanentResident: z.boolean().default(false),
   residentDesaName: z.string().optional(),
-  ktpScan: fileSchema.refine(val => val && val.length > 0, { message: "Scan KTP wajib diupload."}),
-  kkScan: fileSchema,
-  selfieKtp: fileSchema.refine(val => val && val.length > 0, { message: "Foto selfie dengan KTP wajib diupload."}),
+  
+  ktpScan: fileListSchema(true), // FileList for input
+  ktpScanUrl: z.string().url().optional(), // URL after upload
+  
+  kkScan: fileListSchema(false),
+  kkScanUrl: z.string().url().optional(),
+
+  selfieKtp: fileListSchema(true),
+  selfieKtpUrl: z.string().url().optional(),
 
   // Step 3: Pilihan Keanggotaan
   membershipType: z.enum(['Anggota Konsumen', 'Anggota Produsen', 'Anggota Simpan Pinjam', 'Anggota Jasa Lainnya'], { required_error: "Jenis keanggotaan wajib dipilih." }),
@@ -86,55 +110,60 @@ const registrationSchema = z.object({
   agreedToCommitment: z.boolean().refine(val => val === true, { message: "Anda harus menyetujui komitmen keuangan." }),
 
   // Step 5: Lampiran Dokumen
-  // ktpScan is already in step 2
-  pasFoto: fileSchema.refine(val => val && val.length > 0, { message: "Pas foto wajib diupload."}),
-  domicileProof: fileSchema, // PDF allowed here
-  businessDocument: fileSchema, // PDF allowed here
+  pasFoto: fileListSchema(true),
+  pasFotoUrl: z.string().url().optional(),
+
+  domicileProof: fileListSchema(false, [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES], "Format Bukti Domisili hanya JPG, PNG, WEBP, atau PDF."),
+  domicileProofUrl: z.string().url().optional(),
+  
+  businessDocument: fileListSchema(false, [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES], "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF."),
+  businessDocumentUrl: z.string().url().optional(),
 
   // Step 6: Pernyataan
   agreedToTerms: z.boolean().refine(val => val === true, { message: "Anda harus menyetujui pernyataan ini." }),
   agreedToBecomeMember: z.boolean().refine(val => val === true, { message: "Anda harus setuju untuk menjadi anggota." }),
-}).refine(data => data.password === data.confirmPassword, {
+})
+.refine(data => data.password === data.confirmPassword, {
   message: "Password dan konfirmasi password tidak cocok.",
   path: ["confirmPassword"],
-}).refine(data => {
+})
+.refine(data => {
+  // If a file is selected for businessDocument, its URL must also be present (meaning upload was attempted/successful)
+  if (data.businessDocument && data.businessDocument.length > 0 && !data.businessDocumentUrl) {
+     // This implies an upload is pending or failed, which should be handled by field-specific error messages
+     // However, for overall form submission, if a required doc field has a file but no URL, it's an issue
+     // This rule is tricky with async uploads. For now, ensuring if a file is picked for a required field, a URL eventually exists.
+  }
   if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
-    return data.businessDocument && data.businessDocument.length > 0;
+    return data.businessDocument && data.businessDocument.length > 0 && data.businessDocumentUrl;
   }
   return true;
 }, {
-  message: "Dokumen usaha wajib diupload jika mendaftar sebagai produsen/UMKM.",
-  path: ["businessDocument"],
+  message: "Dokumen usaha wajib diupload dan berhasil diunggah jika mendaftar sebagai produsen/UMKM.",
+  path: ["businessDocumentUrl"], // Check the URL field now
 })
-.refine(data => { // Specific refinement for domicileProof
-    if (data.domicileProof && data.domicileProof[0]) {
-      const fileType = data.domicileProof[0].type;
-      if (!ACCEPTED_IMAGE_TYPES.includes(fileType) && fileType !== 'application/pdf') {
-        return false;
-      }
-    }
-    return true;
-}, { message: "Format Bukti Domisili hanya JPG, PNG, WEBP, atau PDF.", path: ["domicileProof"] })
-.refine(data => { // Specific refinement for businessDocument
-    if (data.businessDocument && data.businessDocument[0]) {
-       const fileType = data.businessDocument[0].type;
-      if (!ACCEPTED_IMAGE_TYPES.includes(fileType) && fileType !== 'application/pdf') {
-        return false;
-      }
-    }
-    return true;
-}, { message: "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF.", path: ["businessDocument"] });
+.refine(data => data.ktpScan && data.ktpScan.length > 0 ? !!data.ktpScanUrl : true, {
+    message: "Scan KTP harus berhasil diupload.", path: ["ktpScanUrl"]
+})
+.refine(data => data.selfieKtp && data.selfieKtp.length > 0 ? !!data.selfieKtpUrl : true, {
+    message: "Selfie KTP harus berhasil diupload.", path: ["selfieKtpUrl"]
+})
+.refine(data => data.pasFoto && data.pasFoto.length > 0 ? !!data.pasFotoUrl : true, {
+    message: "Pas foto harus berhasil diupload.", path: ["pasFotoUrl"]
+});
 
 
 type RegistrationFormValues = z.infer<typeof registrationSchema>;
+type FileInputFieldName = 'ktpScan' | 'kkScan' | 'selfieKtp' | 'pasFoto' | 'domicileProof' | 'businessDocument';
+
 
 const steps = [
   { id: 'akun', title: 'Data Akun', fields: ['username', 'email', 'password', 'confirmPassword'] },
   { id: 'pribadi', title: 'Data Pribadi', fields: ['fullName', 'nik', 'kk', 'birthPlace', 'birthDate', 'gender', 'addressDusun', 'addressRtRw', 'addressDesa', 'addressKecamatan', 'phoneNumber', 'currentJob'] },
-  { id: 'kependudukan', title: 'Status Kependudukan', fields: ['isPermanentResident', 'residentDesaName', 'ktpScan', 'kkScan', 'selfieKtp'] },
+  { id: 'kependudukan', title: 'Status Kependudukan & Dokumen Identitas', fields: ['isPermanentResident', 'residentDesaName', 'ktpScan', 'ktpScanUrl', 'kkScan', 'kkScanUrl', 'selfieKtp', 'selfieKtpUrl'] },
   { id: 'keanggotaan', title: 'Pilihan Keanggotaan & Usaha', fields: ['membershipType', 'businessFields', 'otherBusinessField'] },
   { id: 'keuangan', title: 'Komitmen Keuangan', fields: ['agreedToCommitment'] },
-  { id: 'dokumen', title: 'Lampiran Dokumen', fields: ['pasFoto', 'domicileProof', 'businessDocument'] },
+  { id: 'dokumen', title: 'Lampiran Dokumen Tambahan', fields: ['pasFoto', 'pasFotoUrl', 'domicileProof', 'domicileProofUrl', 'businessDocument', 'businessDocumentUrl'] },
   { id: 'pernyataan', title: 'Pernyataan & Persetujuan', fields: ['agreedToTerms', 'agreedToBecomeMember'] },
 ];
 
@@ -145,35 +174,114 @@ export default function RegistrationForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const registrationSessionId = useId().replace(/:/g, ""); // Path-friendly session ID
+  const [fileLoadingStates, setFileLoadingStates] = useState<Record<FileInputFieldName, boolean>>({
+    ktpScan: false, kkScan: false, selfieKtp: false, pasFoto: false, domicileProof: false, businessDocument: false,
+  });
 
 
   const form = useForm<RegistrationFormValues>({
     resolver: zodResolver(registrationSchema),
-    mode: "onChange", // Validate on change for better UX
+    mode: "onChange", 
     defaultValues: {
       username: '', email: '', password: '', confirmPassword: '',
       fullName: '', nik: '', kk: '', birthPlace: '', gender: undefined, birthDate: undefined,
       addressDusun: '', addressRtRw: '', addressDesa: '', addressKecamatan: '',
       phoneNumber: '', currentJob: '',
       isPermanentResident: false, residentDesaName: '',
-      ktpScan: undefined, kkScan: undefined, selfieKtp: undefined,
+      ktpScan: undefined, ktpScanUrl: undefined,
+      kkScan: undefined, kkScanUrl: undefined,
+      selfieKtp: undefined, selfieKtpUrl: undefined,
       membershipType: undefined, businessFields: [], otherBusinessField: '',
       agreedToCommitment: false,
-      pasFoto: undefined, domicileProof: undefined, businessDocument: undefined,
+      pasFoto: undefined, pasFotoUrl: undefined,
+      domicileProof: undefined, domicileProofUrl: undefined,
+      businessDocument: undefined, businessDocumentUrl: undefined,
       agreedToTerms: false, agreedToBecomeMember: false,
     },
   });
 
-  const uploadFile = async (file: File, path: string): Promise<string | undefined> => {
+  const uploadFileUtil = async (file: File, path: string): Promise<string | undefined> => {
     if (!file) return undefined;
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, file);
     return getDownloadURL(storageRef);
   };
+  
+  const handleIndividualFileUpload = async (
+    file: File | undefined,
+    fileInputFieldName: FileInputFieldName,
+    isPdfAllowed: boolean = false
+  ) => {
+    const fileUrlFieldName = `${fileInputFieldName}Url` as keyof RegistrationFormValues;
+
+    if (!file) {
+      form.setValue(fileUrlFieldName, undefined);
+      // If field is required and file is removed, Zod will catch it via FileList validation
+      return;
+    }
+
+    const singleFileValidationSchema = isPdfAllowed ? singleImageOrPdfFileSchema : singleImageFileSchema;
+    const validationResult = singleFileValidationSchema.safeParse(file);
+
+    if (!validationResult.success) {
+      form.setError(fileInputFieldName, {
+        type: "manual",
+        message: validationResult.error.errors[0].message,
+      });
+      form.setValue(fileUrlFieldName, undefined);
+      return;
+    }
+
+    setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: true }));
+    form.setValue(fileUrlFieldName, undefined); // Clear previous URL
+
+    try {
+      const path = `pending_registrations/${registrationSessionId}/${fileInputFieldName}.${file.name.split('.').pop()}`;
+      const downloadURL = await uploadFileUtil(file, path);
+
+      if (downloadURL) {
+        form.setValue(fileUrlFieldName, downloadURL);
+        form.clearErrors(fileInputFieldName); // Clear FileList error if upload is successful
+        toast({ title: "Upload Berhasil", description: `${file.name} telah diupload.` });
+      } else {
+        throw new Error('Upload gagal, URL tidak diterima.');
+      }
+    } catch (err) {
+      console.error(`Error uploading ${fileInputFieldName}:`, err);
+      toast({ title: "Upload Gagal", description: `Gagal mengupload ${file.name}. Coba lagi.`, variant: "destructive" });
+      form.setError(fileInputFieldName, { type: "manual", message: `Upload ${file.name} gagal.` });
+      form.setValue(fileUrlFieldName, undefined);
+    } finally {
+      setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: false }));
+    }
+  };
+
 
   async function onSubmit(data: RegistrationFormValues) {
     setIsLoading(true);
     try {
+      // Check if all required files that were selected also have their URLs (meaning upload was successful)
+      const requiredFileFields: FileInputFieldName[] = ['ktpScan', 'selfieKtp', 'pasFoto'];
+      if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
+        requiredFileFields.push('businessDocument');
+      }
+
+      for (const fieldName of requiredFileFields) {
+        const fileList = data[fieldName] as FileList | undefined;
+        const fileUrl = data[`${fieldName}Url` as keyof RegistrationFormValues] as string | undefined;
+        if (fileList && fileList.length > 0 && !fileUrl) {
+          form.setError(fieldName, { message: `Upload untuk ${fieldName} belum selesai atau gagal. Mohon periksa kembali.` });
+          toast({ title: "Pendaftaran Gagal", description: `Upload untuk ${fieldName} belum selesai atau gagal.`, variant: "destructive" });
+          // Attempt to switch to the step containing the problematic field
+          const stepIndexWithError = steps.findIndex(step => step.fields.includes(fieldName));
+          if (stepIndexWithError !== -1) setCurrentStep(stepIndexWithError);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+
       const usernameQuery = await getDoc(doc(db, "usernames", data.username.toLowerCase()));
       if (usernameQuery.exists()) {
         form.setError("username", { message: "Username sudah digunakan." });
@@ -186,13 +294,6 @@ export default function RegistrationForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       await updateProfile(user, { displayName: data.fullName });
-
-      const ktpScanUrl = data.ktpScan?.[0] && data.ktpScan[0] instanceof File ? await uploadFile(data.ktpScan[0], `members/${user.uid}/ktpScan.${data.ktpScan[0].name.split('.').pop()}`) : undefined;
-      const kkScanUrl = data.kkScan?.[0] && data.kkScan[0] instanceof File ? await uploadFile(data.kkScan[0], `members/${user.uid}/kkScan.${data.kkScan[0].name.split('.').pop()}`) : undefined;
-      const selfieKtpUrl = data.selfieKtp?.[0] && data.selfieKtp[0] instanceof File ? await uploadFile(data.selfieKtp[0], `members/${user.uid}/selfieKtp.${data.selfieKtp[0].name.split('.').pop()}`) : undefined;
-      const pasFotoUrl = data.pasFoto?.[0] && data.pasFoto[0] instanceof File ? await uploadFile(data.pasFoto[0], `members/${user.uid}/pasFoto.${data.pasFoto[0].name.split('.').pop()}`) : undefined;
-      const domicileProofUrl = data.domicileProof?.[0] && data.domicileProof[0] instanceof File ? await uploadFile(data.domicileProof[0], `members/${user.uid}/domicileProof.${data.domicileProof[0].name.split('.').pop()}`) : undefined;
-      const businessDocumentUrl = data.businessDocument?.[0] && data.businessDocument[0] instanceof File ? await uploadFile(data.businessDocument[0], `members/${user.uid}/businessDocument.${data.businessDocument[0].name.split('.').pop()}`) : undefined;
 
       const memberData: MemberRegistrationData = {
         userId: user.uid,
@@ -212,16 +313,20 @@ export default function RegistrationForm() {
         currentJob: data.currentJob,
         isPermanentResident: data.isPermanentResident,
         residentDesaName: data.isPermanentResident ? data.residentDesaName : undefined,
-        ktpScanUrl,
-        kkScanUrl,
-        selfieKtpUrl,
+        
+        ktpScanUrl: data.ktpScanUrl,
+        kkScanUrl: data.kkScanUrl,
+        selfieKtpUrl: data.selfieKtpUrl,
+        
         membershipType: data.membershipType,
         businessFields: data.businessFields,
         otherBusinessField: data.businessFields.includes('Lainnya') ? data.otherBusinessField : undefined,
         agreedToCommitment: data.agreedToCommitment,
-        pasFotoUrl,
-        domicileProofUrl,
-        businessDocumentUrl,
+
+        pasFotoUrl: data.pasFotoUrl,
+        domicileProofUrl: data.domicileProofUrl,
+        businessDocumentUrl: data.businessDocumentUrl,
+
         agreedToTerms: data.agreedToTerms,
         agreedToBecomeMember: data.agreedToBecomeMember,
         registrationTimestamp: serverTimestamp() as unknown as string, 
@@ -234,7 +339,7 @@ export default function RegistrationForm() {
         email: user.email,
         displayName: data.fullName,
         role: 'prospective_member', 
-        photoURL: pasFotoUrl || null,
+        photoURL: data.pasFotoUrl || null,
         createdAt: serverTimestamp(),
       });
 
@@ -267,21 +372,111 @@ export default function RegistrationForm() {
 
   const handleNext = async () => {
     const fieldsToValidate = steps[currentStep].fields as Array<keyof RegistrationFormValues>;
+    // Trigger validation for current step fields
     const isValid = await form.trigger(fieldsToValidate);
-    if (isValid) {
+
+    // Check if there are any pending uploads in the current step
+    let allUploadsDoneOrNotStarted = true;
+    for (const fieldName of fieldsToValidate) {
+        if (fileLoadingStates[fieldName as FileInputFieldName]) {
+            allUploadsDoneOrNotStarted = false;
+            break;
+        }
+        // If a file is selected for a required field, but URL is not yet set (upload failed or not triggered)
+        const fileList = form.getValues(fieldName as FileInputFieldName) as FileList | undefined;
+        const fileUrl = form.getValues(`${fieldName}Url` as keyof RegistrationFormValues) as string | undefined;
+        
+        // Check if the field is a required file input (ktpScan, selfieKtp, pasFoto are always required if files selected)
+        const isRequiredFileUpload = ['ktpScan', 'selfieKtp', 'pasFoto'].includes(fieldName);
+        const isConditionallyRequiredBusinessDoc = fieldName === 'businessDocument' && form.getValues('membershipType') === 'Anggota Produsen' && form.getValues('businessFields').includes('Kerajinan / UMKM');
+
+        if ((isRequiredFileUpload || isConditionallyRequiredBusinessDoc) && fileList && fileList.length > 0 && !fileUrl) {
+            allUploadsDoneOrNotStarted = false;
+            form.setError(fieldName as keyof RegistrationFormValues, {message: "Upload untuk file ini belum selesai atau gagal."});
+            break;
+        }
+    }
+
+
+    if (isValid && allUploadsDoneOrNotStarted) {
       setCurrentStep((prev) => prev + 1);
-    } else {
+    } else if (!isValid) {
        toast({
         title: "Form Tidak Lengkap",
         description: "Mohon periksa kembali isian pada bagian ini.",
         variant: "destructive",
       });
+    } else if (!allUploadsDoneOrNotStarted) {
+        toast({
+            title: "Upload Sedang Berlangsung",
+            description: "Mohon tunggu hingga semua file selesai diupload atau perbaiki error upload pada langkah ini.",
+            variant: "destructive",
+          });
     }
   };
 
   const handlePrev = () => {
     setCurrentStep((prev) => prev - 1);
   };
+
+  // Helper to render file input fields
+  const renderFileInput = (
+    name: FileInputFieldName,
+    label: string,
+    description: string,
+    isPdfAllowed: boolean = false,
+    dataAiHint?: string
+  ) => {
+    const fieldUrlName = `${name}Url` as keyof RegistrationFormValues;
+    const isLoadingFile = fileLoadingStates[name];
+    const uploadedUrl = form.watch(fieldUrlName);
+    
+    return (
+      <FormField
+        control={form.control}
+        name={name}
+        render={({ field: { onChange: onFileListChange, value: fileListValue, ref } }) => (
+          <FormItem>
+            <FormLabel>{label}</FormLabel>
+            <FormControl>
+              <Input
+                type="file"
+                accept={isPdfAllowed ? "image/*,.pdf" : "image/*"}
+                onChange={(e) => {
+                  onFileListChange(e.target.files); // Update FileList for RHF
+                  handleIndividualFileUpload(e.target.files?.[0], name, isPdfAllowed);
+                }}
+                disabled={isLoadingFile}
+                ref={ref}
+                className="pt-2 border-dashed border-2 hover:border-primary"
+              />
+            </FormControl>
+            <FormDescription>{description} Max 5MB.</FormDescription>
+            {isLoadingFile && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload...</div>}
+            {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil.</div>}
+            {!isLoadingFile && form.formState.errors[name] && !form.formState.errors[fileUrlName] && (
+                 <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[name]?.message}</div>
+            )}
+             {!isLoadingFile && form.formState.errors[fileUrlName] && ( // Specifically for URL errors post-attempt
+                 <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[fileUrlName]?.message}</div>
+            )}
+            <FormMessage name={name}/> {/* Shows Zod errors for the FileList field */}
+            
+            {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && (
+              <div className="mt-2">
+                {fileListValue[0].type.startsWith("image/") ? (
+                  <Image src={URL.createObjectURL(fileListValue[0])} alt={`Preview ${label}`} width={200} height={120} className="rounded object-contain border" data-ai-hint={dataAiHint || "document"} />
+                ) : fileListValue[0].type === "application/pdf" ? (
+                  <p className="text-sm text-muted-foreground">Pratinjau PDF: {fileListValue[0].name}</p>
+                ) : null}
+              </div>
+            )}
+          </FormItem>
+        )}
+      />
+    );
+  };
+
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -335,102 +530,47 @@ export default function RegistrationForm() {
       case 1: // Data Pribadi
         return (
           <div className="space-y-4">
-            <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField
-              control={form.control}
-              name="nik"
-              render={({ field: { name, onBlur, onChange, ref, value }  }) => (
+            <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="nik" render={({ field }) => (
               <FormItem>
                 <FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="16 digit NIK"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
+                <FormControl><Input type="number" placeholder="16 digit NIK" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField
-              control={form.control}
-              name="kk"
-              render={({ field: { name, onBlur, onChange, ref, value } }) => (
+            <FormField control={form.control} name="kk" render={({ field }) => (
               <FormItem>
                 <FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="number" 
-                    placeholder="16 digit Nomor KK" 
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''} 
-                  />
-                </FormControl>
+                <FormControl><Input type="number" placeholder="16 digit Nomor KK" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''}  /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField
-              control={form.control}
-              name="birthPlace"
-              render={({ field: { name, onBlur, onChange, ref, value } }) => (
+            <FormField control={form.control} name="birthPlace" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tempat Lahir</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Kota Kelahiran"
-                      name={name}
-                      onBlur={onBlur}
-                      onChange={onChange}
-                      ref={ref}
-                      value={value ?? ''}
-                    />
-                  </FormControl>
+                  <FormControl><Input placeholder="Kota Kelahiran" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="birthDate"
-              render={({ field }) => (
+            )}/>
+            <FormField control={form.control} name="birthDate" render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Tanggal Lahir</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
+                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
                           {field.value ? format(field.value, "PPP", { locale: id }) : <span>Pilih tanggal</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                        initialFocus
-                        captionLayout="dropdown-buttons"
-                        fromYear={1900}
-                        toYear={new Date().getFullYear() - 17} 
-                      />
+                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus captionLayout="dropdown-buttons" fromYear={1900} toYear={new Date().getFullYear() - 17} />
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
+            )}/>
             <FormField control={form.control} name="gender" render={({ field }) => (
               <FormItem><FormLabel>Jenis Kelamin</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -440,106 +580,15 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             <FormLabel className="text-base font-semibold">Alamat Lengkap (Sesuai KTP)</FormLabel>
-            <FormField control={form.control} name="addressDusun" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel className="text-sm">Dusun</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Nama Dusun"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="addressRtRw" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel className="text-sm">RT/RW</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="cth: 001/002" 
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="addressDesa" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel className="text-sm">Desa/Kelurahan</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Nama Desa/Kelurahan"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="addressKecamatan" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel className="text-sm">Kecamatan</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Nama Kecamatan"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="phoneNumber" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel>Nomor Telepon / WhatsApp</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="tel" 
-                    placeholder="08xxxxxxxxxx"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="currentJob" render={({ field: { name, onBlur, onChange, ref, value } }) => (
-              <FormItem>
-                <FormLabel>Pekerjaan Saat Ini</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Pekerjaan Anda"
-                    name={name}
-                    onBlur={onBlur}
-                    onChange={onChange}
-                    ref={ref}
-                    value={value ?? ''}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}/>
+            <FormField control={form.control} name="addressDusun" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressRtRw" render={({ field }) => ( <FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressDesa" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressKecamatan" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="currentJob" render={({ field }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
           </div>
         );
-      case 2: // Status Kependudukan
+      case 2: // Status Kependudukan & Dokumen Identitas
         return (
           <div className="space-y-4">
             <FormField control={form.control} name="isPermanentResident" render={({ field }) => (
@@ -554,24 +603,9 @@ export default function RegistrationForm() {
             {form.watch('isPermanentResident') && (
                <FormField control={form.control} name="residentDesaName" render={({ field }) => (<FormItem><FormLabel>Nama Desa (Tempat Tinggal Tetap)</FormLabel><FormControl><Input placeholder="Nama Desa Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             )}
-            <FormField control={form.control} name="ktpScan" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Scan/Foto KTP (Jelas)</FormLabel>
-                <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview KTP" width={200} height={120} className="mt-2 rounded object-contain" data-ai-hint="identity card" />}</FormItem>
-            )}/>
-            <FormField control={form.control} name="kkScan" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Scan/Foto KK (Opsional)</FormLabel>
-                <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview KK" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="family card" />}</FormItem>
-            )}/>
-             <FormField control={form.control} name="selfieKtp" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Foto Selfie dengan KTP</FormLabel>
-                <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Pastikan wajah dan KTP terlihat jelas. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview Selfie KTP" width={200} height={200} className="mt-2 rounded object-contain" data-ai-hint="selfie id" />}</FormItem>
-            )}/>
+            {renderFileInput('ktpScan', 'Upload Scan/Foto KTP (Jelas)', 'Format: JPG, PNG, WEBP.', false, 'identity card')}
+            {renderFileInput('kkScan', 'Upload Scan/Foto KK (Opsional)', 'Format: JPG, PNG, WEBP.', false, 'family card')}
+            {renderFileInput('selfieKtp', 'Upload Foto Selfie dengan KTP', 'Pastikan wajah dan KTP terlihat jelas.', false, 'selfie id')}
           </div>
         );
        case 3: // Pilihan Keanggotaan
@@ -636,32 +670,13 @@ export default function RegistrationForm() {
             <FormMessage>{form.formState.errors.agreedToCommitment?.message}</FormMessage>
           </div>
         );
-      case 5: // Lampiran Dokumen
+      case 5: // Lampiran Dokumen Tambahan
         return (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Scan/Foto KTP sudah diupload pada bagian Status Kependudukan.</p>
-             <FormField control={form.control} name="pasFoto" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Pas Foto (Ukuran 3x4)</FormLabel>
-                <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview Pas Foto" width={150} height={200} className="mt-2 rounded object-contain" data-ai-hint="portrait photo" />}</FormItem>
-            )}/>
-            <FormField control={form.control} name="domicileProof" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Bukti Domisili (Opsional)</FormLabel>
-                <FormControl><Input type="file" accept="image/*,.pdf" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Bisa surat RT/RW jika alamat KTP berbeda. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Bukti Domisili" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="address proof" />}
-                {value?.[0] && value[0] instanceof File && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
-                </FormItem>
-            )}/>
-             <FormField control={form.control} name="businessDocument" render={({ field: { onChange, value, ...rest }}) => (
-                <FormItem><FormLabel>Upload Dokumen Usaha (Jika Produsen/UMKM)</FormLabel>
-                <FormControl><Input type="file" accept="image/*,.pdf" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
-                <FormDescription>Surat Izin Usaha, dll. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0] instanceof File && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Dokumen Usaha" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="business document" />}
-                {value?.[0] && value[0] instanceof File && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
-                </FormItem>
-            )}/>
+            <p className="text-sm text-muted-foreground">Scan/Foto KTP dan Selfie KTP sudah diupload pada langkah sebelumnya.</p>
+            {renderFileInput('pasFoto', 'Upload Pas Foto (Ukuran 3x4)', 'Format: JPG, PNG, WEBP.', false, 'portrait photo')}
+            {renderFileInput('domicileProof', 'Upload Bukti Domisili (Opsional)', 'Bisa surat RT/RW jika alamat KTP berbeda. Format: JPG, PNG, WEBP, PDF.', true, 'address proof')}
+            {renderFileInput('businessDocument', 'Upload Dokumen Usaha (Jika Produsen/UMKM)', 'Surat Izin Usaha, dll. Format: JPG, PNG, WEBP, PDF.', true, 'business document')}
           </div>
         );
       case 6: // Pernyataan
@@ -730,17 +745,17 @@ export default function RegistrationForm() {
 
         <div className="flex justify-between pt-6">
           {currentStep > 0 && (
-            <Button type="button" variant="outline" onClick={handlePrev} disabled={isLoading}>
+            <Button type="button" variant="outline" onClick={handlePrev} disabled={isLoading || Object.values(fileLoadingStates).some(loading => loading)}>
               Kembali
             </Button>
           )}
           {currentStep < steps.length - 1 && (
-            <Button type="button" onClick={handleNext} className="ml-auto bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading}>
+            <Button type="button" onClick={handleNext} className="ml-auto bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoading || Object.values(fileLoadingStates).some(loading => loading)}>
               Selanjutnya
             </Button>
           )}
           {currentStep === steps.length - 1 && (
-            <Button type="submit" className="ml-auto bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoading}>
+            <Button type="submit" className="ml-auto bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoading || Object.values(fileLoadingStates).some(loading => loading)}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Kirim Pendaftaran
             </Button>
@@ -758,7 +773,5 @@ export default function RegistrationForm() {
     </Form>
   );
 }
-
-    
 
     
