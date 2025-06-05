@@ -1,0 +1,49 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Aturan untuk file yang diupload selama pendaftaran.
+    // File-file ini disimpan dalam path sementara dan direferensikan oleh URL
+    // di dokumen Firestore anggota.
+    match /pending_registrations/{sessionId}/{fileName} {
+      // Izinkan upload (tulis) jika ukuran file di bawah 5MB
+      // dan merupakan tipe gambar atau PDF yang diterima.
+      // Operasi 'write' ini efektif dilakukan oleh pengguna yang belum sepenuhnya terautentikasi
+      // atau terhubung dengan path ini.
+      allow write: if request.resource.size < 5 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('application/pdf'));
+
+      // Izinkan pengguna yang terautentikasi (termasuk admin) untuk membaca file-file ini.
+      // Ini diperlukan agar admin dapat melihat dokumen melalui URL yang disimpan di Firestore.
+      allow read: if request.auth != null;
+    }
+
+    // Ini adalah pola penyimpanan yang lebih aman dan terlingkup untuk pengguna.
+    // Path ini TIDAK digunakan oleh formulir pendaftaran saat ini untuk upload awal.
+    // Ini akan berguna untuk upload di masa mendatang oleh anggota yang sudah dikonfirmasi
+    // (misalnya, laporan fasilitas, pembaruan dokumen).
+    match /members/{userId}/{allPaths=**} {
+      allow read: if request.auth != null &&
+                     (request.auth.uid == userId ||
+                      get(/databases/(default)/documents/users/$(request.auth.uid)).data.role.matches('admin_utama|sekertaris|bendahara|dinas'));
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Contoh untuk laporan fasilitas di masa mendatang yang diupload oleh anggota
+     match /facility_reports/{userId}/{reportId}/{fileName} {
+       allow read: if request.auth != null && 
+                      (request.auth.uid == userId || 
+                       get(/databases/(default)/documents/users/$(request.auth.uid)).data.role.matches('admin_utama|sekertaris|bendahara|dinas'));
+       allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Default: tolak semua akses untuk path lain yang tidak cocok.
+    // Penting untuk memiliki aturan catch-all ini.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
