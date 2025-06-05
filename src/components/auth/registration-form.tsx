@@ -92,8 +92,8 @@ const registrationSchema = z.object({
   isPermanentResident: z.boolean().default(false),
   residentDesaName: z.string().optional(),
   
-  ktpScan: fileListSchema(true), // FileList for input
-  ktpScanUrl: z.string().url().optional(), // URL after upload
+  ktpScan: fileListSchema(true), 
+  ktpScanUrl: z.string().url().optional(), 
   
   kkScan: fileListSchema(false),
   kkScanUrl: z.string().url().optional(),
@@ -128,19 +128,13 @@ const registrationSchema = z.object({
   path: ["confirmPassword"],
 })
 .refine(data => {
-  // If a file is selected for businessDocument, its URL must also be present (meaning upload was attempted/successful)
-  if (data.businessDocument && data.businessDocument.length > 0 && !data.businessDocumentUrl) {
-     // This implies an upload is pending or failed, which should be handled by field-specific error messages
-     // However, for overall form submission, if a required doc field has a file but no URL, it's an issue
-     // This rule is tricky with async uploads. For now, ensuring if a file is picked for a required field, a URL eventually exists.
-  }
   if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
     return data.businessDocument && data.businessDocument.length > 0 && data.businessDocumentUrl;
   }
   return true;
 }, {
   message: "Dokumen usaha wajib diupload dan berhasil diunggah jika mendaftar sebagai produsen/UMKM.",
-  path: ["businessDocumentUrl"], // Check the URL field now
+  path: ["businessDocumentUrl"], 
 })
 .refine(data => data.ktpScan && data.ktpScan.length > 0 ? !!data.ktpScanUrl : true, {
     message: "Scan KTP harus berhasil diupload.", path: ["ktpScanUrl"]
@@ -174,7 +168,7 @@ export default function RegistrationForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const registrationSessionId = useId().replace(/:/g, ""); // Path-friendly session ID
+  const registrationSessionId = useId().replace(/:/g, ""); 
   const [fileLoadingStates, setFileLoadingStates] = useState<Record<FileInputFieldName, boolean>>({
     ktpScan: false, kkScan: false, selfieKtp: false, pasFoto: false, domicileProof: false, businessDocument: false,
   });
@@ -213,11 +207,10 @@ export default function RegistrationForm() {
     fileInputFieldName: FileInputFieldName,
     isPdfAllowed: boolean = false
   ) => {
-    const fileUrlFieldName = `${fileInputFieldName}Url` as keyof RegistrationFormValues;
+    const fileUrlFieldNameKey = `${fileInputFieldName}Url` as keyof RegistrationFormValues;
 
     if (!file) {
-      form.setValue(fileUrlFieldName, undefined);
-      // If field is required and file is removed, Zod will catch it via FileList validation
+      form.setValue(fileUrlFieldNameKey, undefined);
       return;
     }
 
@@ -229,20 +222,20 @@ export default function RegistrationForm() {
         type: "manual",
         message: validationResult.error.errors[0].message,
       });
-      form.setValue(fileUrlFieldName, undefined);
+      form.setValue(fileUrlFieldNameKey, undefined);
       return;
     }
 
     setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: true }));
-    form.setValue(fileUrlFieldName, undefined); // Clear previous URL
+    form.setValue(fileUrlFieldNameKey, undefined); 
 
     try {
       const path = `pending_registrations/${registrationSessionId}/${fileInputFieldName}.${file.name.split('.').pop()}`;
       const downloadURL = await uploadFileUtil(file, path);
 
       if (downloadURL) {
-        form.setValue(fileUrlFieldName, downloadURL);
-        form.clearErrors(fileInputFieldName); // Clear FileList error if upload is successful
+        form.setValue(fileUrlFieldNameKey, downloadURL);
+        form.clearErrors(fileInputFieldName); 
         toast({ title: "Upload Berhasil", description: `${file.name} telah diupload.` });
       } else {
         throw new Error('Upload gagal, URL tidak diterima.');
@@ -251,7 +244,7 @@ export default function RegistrationForm() {
       console.error(`Error uploading ${fileInputFieldName}:`, err);
       toast({ title: "Upload Gagal", description: `Gagal mengupload ${file.name}. Coba lagi.`, variant: "destructive" });
       form.setError(fileInputFieldName, { type: "manual", message: `Upload ${file.name} gagal.` });
-      form.setValue(fileUrlFieldName, undefined);
+      form.setValue(fileUrlFieldNameKey, undefined);
     } finally {
       setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: false }));
     }
@@ -261,7 +254,6 @@ export default function RegistrationForm() {
   async function onSubmit(data: RegistrationFormValues) {
     setIsLoading(true);
     try {
-      // Check if all required files that were selected also have their URLs (meaning upload was successful)
       const requiredFileFields: FileInputFieldName[] = ['ktpScan', 'selfieKtp', 'pasFoto'];
       if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
         requiredFileFields.push('businessDocument');
@@ -269,11 +261,11 @@ export default function RegistrationForm() {
 
       for (const fieldName of requiredFileFields) {
         const fileList = data[fieldName] as FileList | undefined;
-        const fileUrl = data[`${fieldName}Url` as keyof RegistrationFormValues] as string | undefined;
+        const fileUrlFieldNameKey = `${fieldName}Url` as keyof RegistrationFormValues;
+        const fileUrl = data[fileUrlFieldNameKey] as string | undefined;
         if (fileList && fileList.length > 0 && !fileUrl) {
           form.setError(fieldName, { message: `Upload untuk ${fieldName} belum selesai atau gagal. Mohon periksa kembali.` });
           toast({ title: "Pendaftaran Gagal", description: `Upload untuk ${fieldName} belum selesai atau gagal.`, variant: "destructive" });
-          // Attempt to switch to the step containing the problematic field
           const stepIndexWithError = steps.findIndex(step => step.fields.includes(fieldName));
           if (stepIndexWithError !== -1) setCurrentStep(stepIndexWithError);
           setIsLoading(false);
@@ -372,21 +364,18 @@ export default function RegistrationForm() {
 
   const handleNext = async () => {
     const fieldsToValidate = steps[currentStep].fields as Array<keyof RegistrationFormValues>;
-    // Trigger validation for current step fields
     const isValid = await form.trigger(fieldsToValidate);
 
-    // Check if there are any pending uploads in the current step
     let allUploadsDoneOrNotStarted = true;
     for (const fieldName of fieldsToValidate) {
         if (fileLoadingStates[fieldName as FileInputFieldName]) {
             allUploadsDoneOrNotStarted = false;
             break;
         }
-        // If a file is selected for a required field, but URL is not yet set (upload failed or not triggered)
         const fileList = form.getValues(fieldName as FileInputFieldName) as FileList | undefined;
-        const fileUrl = form.getValues(`${fieldName}Url` as keyof RegistrationFormValues) as string | undefined;
+        const fileUrlFieldNameKey = `${fieldName}Url` as keyof RegistrationFormValues;
+        const fileUrl = form.getValues(fileUrlFieldNameKey) as string | undefined;
         
-        // Check if the field is a required file input (ktpScan, selfieKtp, pasFoto are always required if files selected)
         const isRequiredFileUpload = ['ktpScan', 'selfieKtp', 'pasFoto'].includes(fieldName);
         const isConditionallyRequiredBusinessDoc = fieldName === 'businessDocument' && form.getValues('membershipType') === 'Anggota Produsen' && form.getValues('businessFields').includes('Kerajinan / UMKM');
 
@@ -419,7 +408,6 @@ export default function RegistrationForm() {
     setCurrentStep((prev) => prev - 1);
   };
 
-  // Helper to render file input fields
   const renderFileInput = (
     name: FileInputFieldName,
     label: string,
@@ -427,52 +415,63 @@ export default function RegistrationForm() {
     isPdfAllowed: boolean = false,
     dataAiHint?: string
   ) => {
-    const fieldUrlName = `${name}Url` as keyof RegistrationFormValues;
+    // 'name' here is 'ktpScan', 'kkScan', etc.
     const isLoadingFile = fileLoadingStates[name];
-    const uploadedUrl = form.watch(fieldUrlName);
+    // We derive the associated URL field name based on 'name'
+    const associatedUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
+    const uploadedUrl = form.watch(associatedUrlFieldName);
     
     return (
       <FormField
         control={form.control}
-        name={name}
-        render={({ field: { onChange: onFileListChange, value: fileListValue, ref } }) => (
-          <FormItem>
-            <FormLabel>{label}</FormLabel>
-            <FormControl>
-              <Input
-                type="file"
-                accept={isPdfAllowed ? "image/*,.pdf" : "image/*"}
-                onChange={(e) => {
-                  onFileListChange(e.target.files); // Update FileList for RHF
-                  handleIndividualFileUpload(e.target.files?.[0], name, isPdfAllowed);
-                }}
-                disabled={isLoadingFile}
-                ref={ref}
-                className="pt-2 border-dashed border-2 hover:border-primary"
-              />
-            </FormControl>
-            <FormDescription>{description} Max 5MB.</FormDescription>
-            {isLoadingFile && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload...</div>}
-            {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil.</div>}
-            {!isLoadingFile && form.formState.errors[name] && !form.formState.errors[fileUrlName] && (
-                 <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[name]?.message}</div>
-            )}
-             {!isLoadingFile && form.formState.errors[fileUrlName] && ( // Specifically for URL errors post-attempt
-                 <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[fileUrlName]?.message}</div>
-            )}
-            <FormMessage name={name}/> {/* Shows Zod errors for the FileList field */}
-            
-            {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && (
-              <div className="mt-2">
-                {fileListValue[0].type.startsWith("image/") ? (
-                  <Image src={URL.createObjectURL(fileListValue[0])} alt={`Preview ${label}`} width={200} height={120} className="rounded object-contain border" data-ai-hint={dataAiHint || "document"} />
-                ) : fileListValue[0].type === "application/pdf" ? (
-                  <p className="text-sm text-muted-foreground">Pratinjau PDF: {fileListValue[0].name}</p>
-                ) : null}
-              </div>
-            )}
-          </FormItem>
-        )}
+        name={name} // This 'name' is for the FileList input field itself
+        render={({ field: { onChange: onFileListChange, value: fileListValue, ref: fieldRef } }) => {
+          // The 'name' from the outer scope (e.g., 'ktpScan') is accessible here.
+          // Let's derive the URL field name again, *inside* this render scope for clarity and safety.
+          const currentRenderScopeUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
+          
+          return (
+            <FormItem>
+              <FormLabel>{label}</FormLabel>
+              <FormControl>
+                <Input
+                  type="file"
+                  accept={isPdfAllowed ? "image/*,.pdf" : "image/*"}
+                  onChange={(e) => {
+                    onFileListChange(e.target.files); 
+                    handleIndividualFileUpload(e.target.files?.[0], name, isPdfAllowed);
+                  }}
+                  disabled={isLoadingFile}
+                  ref={fieldRef}
+                  className="pt-2 border-dashed border-2 hover:border-primary"
+                />
+              </FormControl>
+              <FormDescription>{description} Max 5MB.</FormDescription>
+              {isLoadingFile && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload...</div>}
+              {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil.</div>}
+              
+              {/* Error for the FileList input itself (e.g., 'ktpScan' for file type/size) */}
+              {!isLoadingFile && form.formState.errors[name] && !form.formState.errors[currentRenderScopeUrlFieldName] && (
+                   <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[name]?.message}</div>
+              )}
+              {/* Error for the URL field (e.g., 'ktpScanUrl' if upload failed or is required but missing) */}
+              {!isLoadingFile && form.formState.errors[currentRenderScopeUrlFieldName] && ( 
+                   <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[currentRenderScopeUrlFieldName]?.message}</div>
+              )}
+              <FormMessage name={name}/> {/* Shows Zod errors for the FileList field ('name') */}
+              
+              {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && (
+                <div className="mt-2">
+                  {fileListValue[0].type.startsWith("image/") ? (
+                    <Image src={URL.createObjectURL(fileListValue[0])} alt={`Preview ${label}`} width={200} height={120} className="rounded object-contain border" data-ai-hint={dataAiHint || "document"} />
+                  ) : fileListValue[0].type === "application/pdf" ? (
+                    <p className="text-sm text-muted-foreground">Pratinjau PDF: {fileListValue[0].name}</p>
+                  ) : null}
+                </div>
+              )}
+            </FormItem>
+          );
+        }}
       />
     );
   };
@@ -530,25 +529,25 @@ export default function RegistrationForm() {
       case 1: // Data Pribadi
         return (
           <div className="space-y-4">
-            <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="nik" render={({ field }) => (
+            <FormField control={form.control} name="fullName" render={({ field: { name, onBlur, onChange, ref, value } }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="nik" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel>
-                <FormControl><Input type="number" placeholder="16 digit NIK" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl>
+                <FormControl><Input type="number" placeholder="16 digit NIK" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="kk" render={({ field }) => (
+            <FormField control={form.control} name="kk" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel>
-                <FormControl><Input type="number" placeholder="16 digit Nomor KK" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''}  /></FormControl>
+                <FormControl><Input type="number" placeholder="16 digit Nomor KK" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''}  /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="birthPlace" render={({ field }) => (
+            <FormField control={form.control} name="birthPlace" render={({ field: { name, onBlur, onChange, ref, value } }) => (
                 <FormItem>
                   <FormLabel>Tempat Lahir</FormLabel>
-                  <FormControl><Input placeholder="Kota Kelahiran" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl>
+                  <FormControl><Input placeholder="Kota Kelahiran" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
             )}/>
@@ -580,12 +579,12 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             <FormLabel className="text-base font-semibold">Alamat Lengkap (Sesuai KTP)</FormLabel>
-            <FormField control={form.control} name="addressDusun" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
-            <FormField control={form.control} name="addressRtRw" render={({ field }) => ( <FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
-            <FormField control={form.control} name="addressDesa" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
-            <FormField control={form.control} name="addressKecamatan" render={({ field }) => ( <FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
-            <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="currentJob" render={({ field }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" name={field.name} onBlur={field.onBlur} onChange={field.onChange} ref={field.ref} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressDusun" render={({ field: { name, onBlur, onChange, ref, value } }) => ( <FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressRtRw" render={({ field: { name, onBlur, onChange, ref, value } }) => ( <FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressDesa" render={({ field: { name, onBlur, onChange, ref, value } }) => ( <FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="addressKecamatan" render={({ field: { name, onBlur, onChange, ref, value } }) => ( <FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem> )}/>
+            <FormField control={form.control} name="phoneNumber" render={({ field: { name, onBlur, onChange, ref, value } }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="currentJob" render={({ field: { name, onBlur, onChange, ref, value } }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
           </div>
         );
       case 2: // Status Kependudukan & Dokumen Identitas
@@ -773,5 +772,7 @@ export default function RegistrationForm() {
     </Form>
   );
 }
+
+    
 
     
