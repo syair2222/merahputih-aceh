@@ -336,7 +336,23 @@ export default function RegistrationForm() {
         return (
           <div className="space-y-4">
             <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="nik" render={({ field }) => (<FormItem><FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel><FormControl><Input type="number" placeholder="16 digit NIK" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="nik" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="16 digit NIK"
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    onChange={field.onChange}
+                    ref={field.ref}
+                    value={field.value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
             <FormField control={form.control} name="kk" render={({ field }) => (
               <FormItem>
                 <FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel>
@@ -626,3 +642,4 @@ export default function RegistrationForm() {
     </Form>
   );
 }
+
