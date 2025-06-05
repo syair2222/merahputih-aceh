@@ -285,14 +285,14 @@ export default function RegistrationForm() {
             <FormField control={form.control} name="username" render={({ field }) => (
               <FormItem>
                 <FormLabel>Username (untuk login)</FormLabel>
-                <FormControl><Input placeholder="cth: budi_123" {...field} /></FormControl>
+                <FormControl><Input placeholder="cth: budi_123" {...field} value={field.value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
             <FormField control={form.control} name="email" render={({ field }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
-                <FormControl><Input type="email" placeholder="nama@email.com" {...field} /></FormControl>
+                <FormControl><Input type="email" placeholder="nama@email.com" {...field} value={field.value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
@@ -301,7 +301,7 @@ export default function RegistrationForm() {
                 <FormLabel>Password</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} placeholder="******" {...field} />
+                    <Input type={showPassword ? "text" : "password"} placeholder="******" {...field} value={field.value ?? ''} />
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground" onClick={() => setShowPassword(!showPassword)}>
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </Button>
@@ -315,7 +315,7 @@ export default function RegistrationForm() {
                 <FormLabel>Konfirmasi Password</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input type={showConfirmPassword ? "text" : "password"} placeholder="******" {...field} />
+                    <Input type={showConfirmPassword ? "text" : "password"} placeholder="******" {...field} value={field.value ?? ''} />
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                       {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </Button>
@@ -329,10 +329,10 @@ export default function RegistrationForm() {
       case 1: // Data Pribadi
         return (
           <div className="space-y-4">
-            <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="nik" render={({ field }) => (<FormItem><FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel><FormControl><Input type="number" placeholder="16 digit NIK" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="kk" render={({ field }) => (<FormItem><FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel><FormControl><Input type="number" placeholder="16 digit Nomor KK" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="birthPlace" render={({ field }) => (<FormItem><FormLabel>Tempat Lahir</FormLabel><FormControl><Input placeholder="Kota Kelahiran" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Nama Lengkap (Sesuai KTP)</FormLabel><FormControl><Input placeholder="Nama Lengkap Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="nik" render={({ field }) => (<FormItem><FormLabel>Nomor Induk Kependudukan (NIK)</FormLabel><FormControl><Input type="number" placeholder="16 digit NIK" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="kk" render={({ field }) => (<FormItem><FormLabel>Nomor Kartu Keluarga (Opsional)</FormLabel><FormControl><Input type="number" placeholder="16 digit Nomor KK" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="birthPlace" render={({ field }) => (<FormItem><FormLabel>Tempat Lahir</FormLabel><FormControl><Input placeholder="Kota Kelahiran" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             <FormField
               control={form.control}
               name="birthDate"
@@ -377,12 +377,12 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             <FormLabel className="text-base font-semibold">Alamat Lengkap (Sesuai KTP)</FormLabel>
-            <FormField control={form.control} name="addressDusun" render={({ field }) => (<FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressRtRw" render={({ field }) => (<FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressDesa" render={({ field }) => (<FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressKecamatan" render={({ field }) => (<FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="currentJob" render={({ field }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressDusun" render={({ field }) => (<FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressRtRw" render={({ field }) => (<FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressDesa" render={({ field }) => (<FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressKecamatan" render={({ field }) => (<FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="currentJob" render={({ field }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
           </div>
         );
       case 2: // Status Kependudukan
@@ -398,7 +398,7 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             {form.watch('isPermanentResident') && (
-               <FormField control={form.control} name="residentDesaName" render={({ field }) => (<FormItem><FormLabel>Nama Desa (Tempat Tinggal Tetap)</FormLabel><FormControl><Input placeholder="Nama Desa Anda" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+               <FormField control={form.control} name="residentDesaName" render={({ field }) => (<FormItem><FormLabel>Nama Desa (Tempat Tinggal Tetap)</FormLabel><FormControl><Input placeholder="Nama Desa Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             )}
             <FormField control={form.control} name="ktpScan" render={({ field: { onChange, value, ...rest }}) => (
                 <FormItem><FormLabel>Upload Scan/Foto KTP (Jelas)</FormLabel>
@@ -434,35 +434,36 @@ export default function RegistrationForm() {
                 </Select><FormMessage />
               </FormItem>
             )}/>
-            <FormField 
-              control={form.control} 
-              name="businessFields" 
-              render={({ field }) => ( 
-              <FormItem>
-                <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
-                {BusinessFieldsOptions.map((item) => (
-                  <FormItem key={item} className="flex flex-row items-start space-x-3 space-y-0 my-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value?.includes(item)}
-                        onCheckedChange={(checked) => {
-                          const currentValues = field.value || [];
-                          if (checked) {
-                            field.onChange([...currentValues, item]);
-                          } else {
-                            field.onChange(currentValues.filter((value) => value !== item));
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormLabel className="font-normal">{item}</FormLabel>
+            <FormField
+                control={form.control}
+                name="businessFields"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
+                    {BusinessFieldsOptions.map((item) => (
+                      <FormItem key={item} className="flex flex-row items-start space-x-3 space-y-0 my-2">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value?.includes(item)}
+                            onCheckedChange={(checked) => {
+                              const currentValues = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentValues, item]);
+                              } else {
+                                field.onChange(currentValues.filter((value) => value !== item));
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormLabel className="font-normal">{item}</FormLabel>
+                      </FormItem>
+                    ))}
+                    <FormMessage />
                   </FormItem>
-                ))}
-                <FormMessage />
-              </FormItem>
-            )}/>
+                )}
+              />
             {form.watch('businessFields')?.includes('Lainnya') && (
-                <FormField control={form.control} name="otherBusinessField" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya (Isian Bebas)</FormLabel><FormControl><Textarea placeholder="Sebutkan bidang usaha lainnya" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="otherBusinessField" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya (Isian Bebas)</FormLabel><FormControl><Textarea placeholder="Sebutkan bidang usaha lainnya" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             )}
           </div>
         );
