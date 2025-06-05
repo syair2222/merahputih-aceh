@@ -35,6 +35,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import Image from 'next/image';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -132,9 +133,8 @@ export default function RegistrationForm() {
     resolver: zodResolver(registrationSchema),
     mode: "onChange", // Validate on change for better UX
     defaultValues: {
-      // Initialize all fields to prevent uncontrolled component warnings
       username: '', email: '', password: '', confirmPassword: '',
-      fullName: '', nik: '', kk: '', birthPlace: '', gender: undefined,
+      fullName: '', nik: '', kk: '', birthPlace: '', gender: undefined, birthDate: undefined,
       addressDusun: '', addressRtRw: '', addressDesa: '', addressKecamatan: '',
       phoneNumber: '', currentJob: '',
       isPermanentResident: false, residentDesaName: '',
@@ -156,23 +156,19 @@ export default function RegistrationForm() {
   async function onSubmit(data: RegistrationFormValues) {
     setIsLoading(true);
     try {
-      // 0. Check if username or NIK already exists
       const usernameQuery = await getDoc(doc(db, "usernames", data.username.toLowerCase()));
       if (usernameQuery.exists()) {
         form.setError("username", { message: "Username sudah digunakan." });
         toast({ title: "Pendaftaran Gagal", description: "Username sudah digunakan.", variant: "destructive" });
         setIsLoading(false);
-        setCurrentStep(0); // Go back to username field step
+        setCurrentStep(0); 
         return;
       }
-      // NIK check can be added similarly if NIKs are stored uniquely, e.g. in a `niks` collection or as part of member data with query.
-
-      // 1. Create user in Firebase Auth
+      
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       await updateProfile(user, { displayName: data.fullName });
 
-      // 2. Upload files to Firebase Storage
       const ktpScanUrl = data.ktpScan?.[0] ? await uploadFile(data.ktpScan[0], `members/${user.uid}/ktpScan.${data.ktpScan[0].name.split('.').pop()}`) : undefined;
       const kkScanUrl = data.kkScan?.[0] ? await uploadFile(data.kkScan[0], `members/${user.uid}/kkScan.${data.kkScan[0].name.split('.').pop()}`) : undefined;
       const selfieKtpUrl = data.selfieKtp?.[0] ? await uploadFile(data.selfieKtp[0], `members/${user.uid}/selfieKtp.${data.selfieKtp[0].name.split('.').pop()}`) : undefined;
@@ -180,11 +176,9 @@ export default function RegistrationForm() {
       const domicileProofUrl = data.domicileProof?.[0] ? await uploadFile(data.domicileProof[0], `members/${user.uid}/domicileProof.${data.domicileProof[0].name.split('.').pop()}`) : undefined;
       const businessDocumentUrl = data.businessDocument?.[0] ? await uploadFile(data.businessDocument[0], `members/${user.uid}/businessDocument.${data.businessDocument[0].name.split('.').pop()}`) : undefined;
 
-
-      // 3. Prepare member data for Firestore
       const memberData: MemberRegistrationData = {
         userId: user.uid,
-        username: data.username.toLowerCase(), // Store lowercase for case-insensitive check
+        username: data.username.toLowerCase(), 
         email: data.email,
         fullName: data.fullName,
         nik: data.nik,
@@ -212,27 +206,23 @@ export default function RegistrationForm() {
         businessDocumentUrl,
         agreedToTerms: data.agreedToTerms,
         agreedToBecomeMember: data.agreedToBecomeMember,
-        registrationTimestamp: serverTimestamp() as unknown as string, // Firestore will convert this
+        registrationTimestamp: serverTimestamp() as unknown as string, 
         status: 'pending',
-        otpVerified: false, // Assuming OTP will be implemented later
+        otpVerified: false, 
       };
       
-      // 4. Store user role and basic info in 'users' collection
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
         displayName: data.fullName,
-        role: 'prospective_member', // Initial role
+        role: 'prospective_member', 
         photoURL: pasFotoUrl || null,
         createdAt: serverTimestamp(),
       });
 
-      // 5. Store detailed member registration data in 'members' collection
       await setDoc(doc(db, 'members', user.uid), memberData);
       
-      // 6. Store username for uniqueness check
       await setDoc(doc(db, "usernames", data.username.toLowerCase()), { uid: user.uid });
-
 
       toast({
         title: 'Pendaftaran Berhasil!',
@@ -358,7 +348,7 @@ export default function RegistrationForm() {
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={1900}
-                        toYear={new Date().getFullYear() - 17} // Minimal 17 tahun
+                        toYear={new Date().getFullYear() - 17} 
                       />
                     </PopoverContent>
                   </Popover>
@@ -432,25 +422,29 @@ export default function RegistrationForm() {
                 </Select><FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="businessFields" render={({ field }) => (
+            <FormField 
+              control={form.control} 
+              name="businessFields" 
+              render={({ field }) => ( // This 'field' is for 'businessFields' (the array)
               <FormItem>
                 <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
                 {BusinessFieldsOptions.map((item) => (
-                  <FormField key={item} control={form.control} name="businessFields" render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 my-2">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value?.includes(item)}
-                          onCheckedChange={(checked) => {
-                            return checked
-                              ? field.onChange([...(field.value || []), item])
-                              : field.onChange(field.value?.filter((value) => value !== item));
-                          }}
-                        />
-                      </FormControl>
-                      <FormLabel className="font-normal">{item}</FormLabel>
-                    </FormItem>
-                  )} />
+                  <FormItem key={item} className="flex flex-row items-start space-x-3 space-y-0 my-2">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value?.includes(item)}
+                        onCheckedChange={(checked) => {
+                          const currentValues = field.value || [];
+                          if (checked) {
+                            field.onChange([...currentValues, item]);
+                          } else {
+                            field.onChange(currentValues.filter((value) => value !== item));
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormLabel className="font-normal">{item}</FormLabel>
+                  </FormItem>
                 ))}
                 <FormMessage />
               </FormItem>
