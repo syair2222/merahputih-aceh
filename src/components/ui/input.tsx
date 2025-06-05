@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, value: propValue, ...props }, ref) => { // Destructure 'value' as 'propValue'
     return (
       <input
         type={type}
@@ -12,7 +12,8 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
-        {...props}
+        value={propValue ?? ''} // Explicitly use propValue and default to ''
+        {...props} // Spread the rest of the props (which no longer includes 'value')
       />
     )
   }
