@@ -415,19 +415,15 @@ export default function RegistrationForm() {
     isPdfAllowed: boolean = false,
     dataAiHint?: string
   ) => {
-    // 'name' here is 'ktpScan', 'kkScan', etc.
     const isLoadingFile = fileLoadingStates[name];
-    // We derive the associated URL field name based on 'name'
     const associatedUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
     const uploadedUrl = form.watch(associatedUrlFieldName);
     
     return (
       <FormField
         control={form.control}
-        name={name} // This 'name' is for the FileList input field itself
+        name={name}
         render={({ field: { onChange: onFileListChange, value: fileListValue, ref: fieldRef } }) => {
-          // The 'name' from the outer scope (e.g., 'ktpScan') is accessible here.
-          // Let's derive the URL field name again, *inside* this render scope for clarity and safety.
           const currentRenderScopeUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
           
           return (
@@ -450,15 +446,13 @@ export default function RegistrationForm() {
               {isLoadingFile && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload...</div>}
               {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil.</div>}
               
-              {/* Error for the FileList input itself (e.g., 'ktpScan' for file type/size) */}
               {!isLoadingFile && form.formState.errors[name] && !form.formState.errors[currentRenderScopeUrlFieldName] && (
                    <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[name]?.message}</div>
               )}
-              {/* Error for the URL field (e.g., 'ktpScanUrl' if upload failed or is required but missing) */}
               {!isLoadingFile && form.formState.errors[currentRenderScopeUrlFieldName] && ( 
                    <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[currentRenderScopeUrlFieldName]?.message}</div>
               )}
-              <FormMessage name={name}/> {/* Shows Zod errors for the FileList field ('name') */}
+              <FormMessage name={name}/> 
               
               {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && (
                 <div className="mt-2">
@@ -482,26 +476,26 @@ export default function RegistrationForm() {
       case 0: // Data Akun
         return (
           <div className="space-y-4">
-            <FormField control={form.control} name="username" render={({ field }) => (
+            <FormField control={form.control} name="username" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Username (untuk login)</FormLabel>
-                <FormControl><Input placeholder="cth: budi_123" {...field} value={field.value ?? ''} /></FormControl>
+                <FormControl><Input placeholder="cth: budi_123" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="email" render={({ field }) => (
+            <FormField control={form.control} name="email" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
-                <FormControl><Input type="email" placeholder="nama@email.com" {...field} value={field.value ?? ''} /></FormControl>
+                <FormControl><Input type="email" placeholder="nama@email.com" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl>
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="password" render={({ field }) => (
+            <FormField control={form.control} name="password" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input type={showPassword ? "text" : "password"} placeholder="******" {...field} value={field.value ?? ''} />
+                    <Input type={showPassword ? "text" : "password"} placeholder="******" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} />
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground" onClick={() => setShowPassword(!showPassword)}>
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </Button>
@@ -510,12 +504,12 @@ export default function RegistrationForm() {
                 <FormMessage />
               </FormItem>
             )}/>
-            <FormField control={form.control} name="confirmPassword" render={({ field }) => (
+            <FormField control={form.control} name="confirmPassword" render={({ field: { name, onBlur, onChange, ref, value } }) => (
               <FormItem>
                 <FormLabel>Konfirmasi Password</FormLabel>
                 <FormControl>
                   <div className="relative">
-                    <Input type={showConfirmPassword ? "text" : "password"} placeholder="******" {...field} value={field.value ?? ''} />
+                    <Input type={showConfirmPassword ? "text" : "password"} placeholder="******" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} />
                     <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                       {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </Button>
@@ -600,7 +594,26 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             {form.watch('isPermanentResident') && (
-               <FormField control={form.control} name="residentDesaName" render={({ field }) => (<FormItem><FormLabel>Nama Desa (Tempat Tinggal Tetap)</FormLabel><FormControl><Input placeholder="Nama Desa Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+               <FormField
+                 control={form.control}
+                 name="residentDesaName"
+                 render={({ field: { name, onBlur, onChange, ref, value } }) => (
+                   <FormItem>
+                     <FormLabel>Nama Desa (Tempat Tinggal Tetap)</FormLabel>
+                     <FormControl>
+                       <Input
+                         placeholder="Nama Desa Anda"
+                         name={name}
+                         onBlur={onBlur}
+                         onChange={onChange}
+                         ref={ref}
+                         value={value ?? ''}
+                       />
+                     </FormControl>
+                     <FormMessage />
+                   </FormItem>
+                 )}
+               />
             )}
             {renderFileInput('ktpScan', 'Upload Scan/Foto KTP (Jelas)', 'Format: JPG, PNG, WEBP.', false, 'identity card')}
             {renderFileInput('kkScan', 'Upload Scan/Foto KK (Opsional)', 'Format: JPG, PNG, WEBP.', false, 'family card')}
@@ -648,7 +661,7 @@ export default function RegistrationForm() {
               )}
             />
             {form.watch('businessFields')?.includes('Lainnya') && (
-                <FormField control={form.control} name="otherBusinessField" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya (Isian Bebas)</FormLabel><FormControl><Textarea placeholder="Sebutkan bidang usaha lainnya" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+                <FormField control={form.control} name="otherBusinessField" render={({ field: { name, onBlur, onChange, ref, value } }) => (<FormItem><FormLabel>Bidang Usaha Lainnya (Isian Bebas)</FormLabel><FormControl><Textarea placeholder="Sebutkan bidang usaha lainnya" name={name} onBlur={onBlur} onChange={onChange} ref={ref} value={value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
             )}
           </div>
         );
@@ -772,7 +785,3 @@ export default function RegistrationForm() {
     </Form>
   );
 }
-
-    
-
-    
