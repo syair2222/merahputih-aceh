@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import Image from 'next/image';
+import type { FirebaseError } from 'firebase/app';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -242,7 +243,17 @@ export default function RegistrationForm() {
       }
     } catch (err) {
       console.error(`Error uploading ${fileInputFieldName}:`, err);
-      toast({ title: "Upload Gagal", description: `Gagal mengupload ${file.name}. Coba lagi.`, variant: "destructive" });
+      let description = `Gagal mengupload ${file.name}. Coba lagi.`;
+      
+      // Check if err is a FirebaseError and has a code property
+      const firebaseError = err as FirebaseError;
+      if (firebaseError && firebaseError.code) {
+          description += ` (Error: ${firebaseError.code})`;
+      } else if (err instanceof Error) {
+          description += ` (Pesan: ${err.message})`;
+      }
+      
+      toast({ title: "Upload Gagal", description, variant: "destructive" });
       form.setError(fileInputFieldName, { type: "manual", message: `Upload ${file.name} gagal.` });
       form.setValue(fileUrlFieldNameKey, undefined);
     } finally {
@@ -785,3 +796,4 @@ export default function RegistrationForm() {
     </Form>
   );
 }
+
