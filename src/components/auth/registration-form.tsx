@@ -42,10 +42,10 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 
 
 const fileSchema = z.any()
-  .refine((file) => file && file.length > 0, "File dibutuhkan.")
-  .refine((file) => file && file[0]?.size <= MAX_FILE_SIZE, `Ukuran file maksimal 5MB.`)
+  .refine((fileList) => fileList && fileList.length > 0, "File dibutuhkan.")
+  .refine((fileList) => fileList && fileList[0]?.size <= MAX_FILE_SIZE, `Ukuran file maksimal 5MB.`)
   .refine(
-    (file) => file && ACCEPTED_IMAGE_TYPES.includes(file[0]?.type),
+    (fileList) => fileList && ACCEPTED_IMAGE_TYPES.includes(fileList[0]?.type),
     "Format file tidak valid. Hanya .jpg, .jpeg, .png, .webp yang diperbolehkan."
   ).optional();
 
@@ -88,8 +88,8 @@ const registrationSchema = z.object({
   // Step 5: Lampiran Dokumen
   // ktpScan is already in step 2
   pasFoto: fileSchema.refine(val => val && val.length > 0, { message: "Pas foto wajib diupload."}),
-  domicileProof: fileSchema,
-  businessDocument: fileSchema,
+  domicileProof: fileSchema, // PDF allowed here
+  businessDocument: fileSchema, // PDF allowed here
 
   // Step 6: Pernyataan
   agreedToTerms: z.boolean().refine(val => val === true, { message: "Anda harus menyetujui pernyataan ini." }),
@@ -105,7 +105,19 @@ const registrationSchema = z.object({
 }, {
   message: "Dokumen usaha wajib diupload jika mendaftar sebagai produsen/UMKM.",
   path: ["businessDocument"],
-});
+})
+.refine(data => { // Specific refinement for domicileProof if it's an image
+    if (data.domicileProof && data.domicileProof[0] && !ACCEPTED_IMAGE_TYPES.includes(data.domicileProof[0].type) && data.domicileProof[0].type !== 'application/pdf') {
+        return false;
+    }
+    return true;
+}, { message: "Format Bukti Domisili hanya JPG, PNG, WEBP, atau PDF.", path: ["domicileProof"] })
+.refine(data => { // Specific refinement for businessDocument if it's an image
+    if (data.businessDocument && data.businessDocument[0] && !ACCEPTED_IMAGE_TYPES.includes(data.businessDocument[0].type) && data.businessDocument[0].type !== 'application/pdf') {
+        return false;
+    }
+    return true;
+}, { message: "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF.", path: ["businessDocument"] });
 
 
 type RegistrationFormValues = z.infer<typeof registrationSchema>;
@@ -392,19 +404,19 @@ export default function RegistrationForm() {
                 <FormItem><FormLabel>Upload Scan/Foto KTP (Jelas)</FormLabel>
                 <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && <Image src={URL.createObjectURL(value[0])} alt="Preview KTP" width={200} height={120} className="mt-2 rounded object-contain" data-ai-hint="identity card" />}</FormItem>
+                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview KTP" width={200} height={120} className="mt-2 rounded object-contain" data-ai-hint="identity card" />}</FormItem>
             )}/>
             <FormField control={form.control} name="kkScan" render={({ field: { onChange, value, ...rest }}) => (
                 <FormItem><FormLabel>Upload Scan/Foto KK (Opsional)</FormLabel>
                 <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && <Image src={URL.createObjectURL(value[0])} alt="Preview KK" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="family card" />}</FormItem>
+                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview KK" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="family card" />}</FormItem>
             )}/>
              <FormField control={form.control} name="selfieKtp" render={({ field: { onChange, value, ...rest }}) => (
                 <FormItem><FormLabel>Upload Foto Selfie dengan KTP</FormLabel>
                 <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Pastikan wajah dan KTP terlihat jelas. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && <Image src={URL.createObjectURL(value[0])} alt="Preview Selfie KTP" width={200} height={200} className="mt-2 rounded object-contain" data-ai-hint="selfie id" />}</FormItem>
+                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview Selfie KTP" width={200} height={200} className="mt-2 rounded object-contain" data-ai-hint="selfie id" />}</FormItem>
             )}/>
           </div>
         );
@@ -425,7 +437,7 @@ export default function RegistrationForm() {
             <FormField 
               control={form.control} 
               name="businessFields" 
-              render={({ field }) => ( // This 'field' is for 'businessFields' (the array)
+              render={({ field }) => ( 
               <FormItem>
                 <FormLabel>Pilihan Bidang Usaha yang Ingin Diikuti (Bisa lebih dari satu)</FormLabel>
                 {BusinessFieldsOptions.map((item) => (
@@ -479,22 +491,22 @@ export default function RegistrationForm() {
                 <FormItem><FormLabel>Upload Pas Foto (Ukuran 3x4)</FormLabel>
                 <FormControl><Input type="file" accept="image/*" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Format: JPG, PNG, WEBP. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && <Image src={URL.createObjectURL(value[0])} alt="Preview Pas Foto" width={150} height={200} className="mt-2 rounded object-contain" data-ai-hint="portrait photo" />}</FormItem>
+                {value?.[0] && value[0] instanceof File && <Image src={URL.createObjectURL(value[0])} alt="Preview Pas Foto" width={150} height={200} className="mt-2 rounded object-contain" data-ai-hint="portrait photo" />}</FormItem>
             )}/>
             <FormField control={form.control} name="domicileProof" render={({ field: { onChange, value, ...rest }}) => (
                 <FormItem><FormLabel>Upload Bukti Domisili (Opsional)</FormLabel>
                 <FormControl><Input type="file" accept="image/*,.pdf" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Bisa surat RT/RW jika alamat KTP berbeda. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Bukti Domisili" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="address proof" />}
-                {value?.[0] && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
+                {value?.[0] && value[0] instanceof File && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Bukti Domisili" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="address proof" />}
+                {value?.[0] && value[0] instanceof File && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
                 </FormItem>
             )}/>
              <FormField control={form.control} name="businessDocument" render={({ field: { onChange, value, ...rest }}) => (
                 <FormItem><FormLabel>Upload Dokumen Usaha (Jika Produsen/UMKM)</FormLabel>
                 <FormControl><Input type="file" accept="image/*,.pdf" onChange={e => onChange(e.target.files)} {...rest} className="pt-2 border-dashed border-2 hover:border-primary"/></FormControl>
                 <FormDescription>Surat Izin Usaha, dll. Max 5MB.</FormDescription><FormMessage />
-                {value?.[0] && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Dokumen Usaha" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="business document" />}
-                {value?.[0] && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
+                {value?.[0] && value[0] instanceof File && value[0].type.startsWith("image/") && <Image src={URL.createObjectURL(value[0])} alt="Preview Dokumen Usaha" width={200} height={280} className="mt-2 rounded object-contain" data-ai-hint="business document" />}
+                {value?.[0] && value[0] instanceof File && value[0].type === "application/pdf" && <p className="text-sm mt-1 text-green-600">File PDF: {value[0].name} dipilih.</p>}
                 </FormItem>
             )}/>
           </div>
