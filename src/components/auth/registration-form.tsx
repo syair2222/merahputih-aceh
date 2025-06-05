@@ -440,12 +440,103 @@ export default function RegistrationForm() {
               </FormItem>
             )}/>
             <FormLabel className="text-base font-semibold">Alamat Lengkap (Sesuai KTP)</FormLabel>
-            <FormField control={form.control} name="addressDusun" render={({ field }) => (<FormItem><FormLabel className="text-sm">Dusun</FormLabel><FormControl><Input placeholder="Nama Dusun" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressRtRw" render={({ field }) => (<FormItem><FormLabel className="text-sm">RT/RW</FormLabel><FormControl><Input placeholder="cth: 001/002" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressDesa" render={({ field }) => (<FormItem><FormLabel className="text-sm">Desa/Kelurahan</FormLabel><FormControl><Input placeholder="Nama Desa/Kelurahan" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="addressKecamatan" render={({ field }) => (<FormItem><FormLabel className="text-sm">Kecamatan</FormLabel><FormControl><Input placeholder="Nama Kecamatan" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="phoneNumber" render={({ field }) => (<FormItem><FormLabel>Nomor Telepon / WhatsApp</FormLabel><FormControl><Input type="tel" placeholder="08xxxxxxxxxx" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
-            <FormField control={form.control} name="currentJob" render={({ field }) => (<FormItem><FormLabel>Pekerjaan Saat Ini</FormLabel><FormControl><Input placeholder="Pekerjaan Anda" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)}/>
+            <FormField control={form.control} name="addressDusun" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel className="text-sm">Dusun</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Nama Dusun"
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="addressRtRw" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel className="text-sm">RT/RW</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="cth: 001/002" 
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="addressDesa" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel className="text-sm">Desa/Kelurahan</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Nama Desa/Kelurahan"
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="addressKecamatan" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel className="text-sm">Kecamatan</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Nama Kecamatan"
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="phoneNumber" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel>Nomor Telepon / WhatsApp</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="tel" 
+                    placeholder="08xxxxxxxxxx"
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="currentJob" render={({ field: { name, onBlur, onChange, ref, value } }) => (
+              <FormItem>
+                <FormLabel>Pekerjaan Saat Ini</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Pekerjaan Anda"
+                    name={name}
+                    onBlur={onBlur}
+                    onChange={onChange}
+                    ref={ref}
+                    value={value ?? ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}/>
           </div>
         );
       case 2: // Status Kependudukan
@@ -497,7 +588,7 @@ export default function RegistrationForm() {
                 </Select><FormMessage />
               </FormItem>
             )}/>
-             <FormField
+             <Controller
               control={form.control}
               name="businessFields"
               render={({ field }) => (
@@ -667,5 +758,7 @@ export default function RegistrationForm() {
     </Form>
   );
 }
+
+    
 
     
