@@ -40,7 +40,6 @@ export default function Home() {
     const fetchAnnouncements = async () => {
       setAnnouncementsLoading(true);
       try {
-        // Dynamically import firestore functions only on client side
         const { getDocs, query, collection, orderBy, limit, where } = await import('firebase/firestore');
         const announcementsCol = collection(db, "announcements");
         const q = query(announcementsCol, where("status", "==", "published"), orderBy("createdAt", "desc"), limit(3));
@@ -48,7 +47,7 @@ export default function Home() {
         const fetchedAnnouncements = snapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() // Convert Timestamp to Date
+          createdAt: doc.data().createdAt?.toDate() 
         }));
         setLatestAnnouncements(fetchedAnnouncements);
       } catch (error) {
@@ -112,14 +111,14 @@ export default function Home() {
   };
 
   return (
-    <div className="space-y-12">
-      <section className="text-center py-12 bg-gradient-to-br from-primary/80 via-primary to-accent/80 rounded-lg shadow-xl">
+    <div className="space-y-8 sm:space-y-12">
+      <section className="text-center py-8 sm:py-12 bg-gradient-to-br from-primary/80 via-primary to-accent/80 rounded-lg shadow-xl">
         <div className="container mx-auto px-4">
-          <Image src="https://placehold.co/150x150.png" alt="Logo Koperasi" width={150} height={150} className="mx-auto mb-6 rounded-full shadow-2xl border-4 border-white" data-ai-hint="cooperative logo" />
-          <h1 className="text-5xl font-headline font-bold text-primary-foreground drop-shadow-md mb-4">{cooperativeInfo.name}</h1>
-          <p className="text-xl text-primary-foreground/90 mb-2">{cooperativeInfo.location}</p>
-          <p className="text-lg text-primary-foreground/90">{cooperativeInfo.established}</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
+          <Image src="https://placehold.co/100x100.png" alt="Logo Koperasi" width={100} height={100} className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" data-ai-hint="cooperative logo" />
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary-foreground drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
+          <p className="text-base sm:text-lg text-primary-foreground/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
+          <p className="text-sm sm:text-base text-primary-foreground/90">{cooperativeInfo.established}</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8">
             <Button size="lg" asChild className="w-full sm:w-auto bg-primary-foreground text-primary hover:bg-gray-200 shadow-lg transform hover:scale-105 transition-transform">
               <Link href="/register"><UserPlus className="mr-2" /> Daftar Anggota</Link>
             </Button>
@@ -133,28 +132,28 @@ export default function Home() {
       <section id="info-koperasi" className="container mx-auto px-4">
         <Card className="shadow-lg bg-card/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-3xl font-headline text-primary">Selamat Datang di {cooperativeInfo.name}</CardTitle>
-            <CardDescription className="text-lg">{cooperativeInfo.introduction}</CardDescription>
+            <CardTitle className="text-2xl sm:text-3xl font-headline text-primary">Selamat Datang di {cooperativeInfo.name}</CardTitle>
+            <CardDescription className="text-base sm:text-lg">{cooperativeInfo.introduction}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 text-foreground/90">
+          <CardContent className="space-y-4 sm:space-y-6 text-foreground/90">
             <div>
-              <h2 className="text-2xl font-headline font-semibold mb-3 text-accent flex items-center"><Sparkles className="mr-2 text-yellow-400" />Maksud Pendirian</h2>
-              <ul className="list-disc list-inside space-y-1 pl-4">
+              <h2 className="text-xl sm:text-2xl font-headline font-semibold mb-2 sm:mb-3 text-accent flex items-center"><Sparkles className="mr-2 text-yellow-400" />Maksud Pendirian</h2>
+              <ul className="list-disc list-inside space-y-1 pl-4 text-sm sm:text-base">
                 {cooperativeInfo.purpose.map((item, index) => <li key={index}>{item}</li>)}
               </ul>
             </div>
             <div>
-              <h2 className="text-2xl font-headline font-semibold mb-3 text-accent flex items-center"><Sparkles className="mr-2 text-yellow-400" />Tujuan Pendirian</h2>
-              <ul className="list-disc list-inside space-y-1 pl-4">
+              <h2 className="text-xl sm:text-2xl font-headline font-semibold mb-2 sm:mb-3 text-accent flex items-center"><Sparkles className="mr-2 text-yellow-400" />Tujuan Pendirian</h2>
+              <ul className="list-disc list-inside space-y-1 pl-4 text-sm sm:text-base">
                 {cooperativeInfo.objectives.map((item, index) => <li key={index}>{item}</li>)}
               </ul>
             </div>
-            <div className="pt-4 border-t border-border">
-              <p className="text-lg italic">{cooperativeInfo.closingStatement}</p>
-              <p className="text-2xl font-headline font-semibold text-center mt-6 text-primary">{cooperativeInfo.motto}</p>
+            <div className="pt-3 sm:pt-4 border-t border-border">
+              <p className="text-base sm:text-lg italic">{cooperativeInfo.closingStatement}</p>
+              <p className="text-xl sm:text-2xl font-headline font-semibold text-center mt-4 sm:mt-6 text-primary">{cooperativeInfo.motto}</p>
             </div>
-             <div className="text-center mt-6">
-                <Button asChild variant="link" className="text-lg">
+             <div className="text-center mt-4 sm:mt-6">
+                <Button asChild variant="link" className="text-base sm:text-lg">
                     <Link href="/info">Pelajari Lebih Lanjut Tentang Koperasi &rarr;</Link>
                 </Button>
             </div>
@@ -163,28 +162,27 @@ export default function Home() {
       </section>
 
       <section id="announcements" className="container mx-auto px-4">
-        <h2 className="text-3xl font-headline font-semibold mb-6 text-center text-primary flex items-center justify-center"><Megaphone className="mr-3 h-8 w-8" />Pengumuman Terbaru</h2>
+        <h2 className="text-2xl sm:text-3xl font-headline font-semibold mb-4 sm:mb-6 text-center text-primary flex items-center justify-center"><Megaphone className="mr-3 h-7 w-7 sm:h-8 sm:w-8" />Pengumuman Terbaru</h2>
         {announcementsLoading ? (
           <div className="text-center text-muted-foreground py-10">
             <Loader2 className="inline-block animate-spin h-8 w-8 text-primary" />
             <p>Memuat pengumuman...</p>
           </div>
         ) : latestAnnouncements.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {latestAnnouncements.map((announcement) => (
               <Card key={announcement.id} className="shadow-lg hover:shadow-xl transition-shadow bg-card/80 backdrop-blur-sm flex flex-col">
                 <CardHeader>
-                  <CardTitle className="text-xl font-headline text-accent">{announcement.title}</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-lg sm:text-xl font-headline text-accent">{announcement.title}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
                     {announcement.createdAt instanceof Date ? announcement.createdAt.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Tanggal tidak tersedia'} - Oleh: {announcement.authorName}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow">
-                  <p className="text-foreground/80 line-clamp-4 whitespace-pre-wrap">{announcement.content}</p>
+                  <p className="text-sm sm:text-base text-foreground/80 line-clamp-4 whitespace-pre-wrap">{announcement.content}</p>
                 </CardContent>
                 <CardFooter>
-                   {/* Placeholder for link to full announcement page if exists */}
-                  <Button variant="link" className="text-primary hover:text-accent p-0" disabled>Baca Selengkapnya & Komentar &rarr;</Button>
+                  <Button variant="link" className="text-primary hover:text-accent p-0 text-sm sm:text-base" disabled>Baca Selengkapnya & Komentar &rarr;</Button>
                 </CardFooter>
               </Card>
             ))}
@@ -197,8 +195,8 @@ export default function Home() {
       <section id="ai-assistant" className="container mx-auto px-4">
         <Card className="shadow-xl bg-card/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-3xl font-headline text-primary flex items-center"><MessageCircleQuestion className="mr-3 h-8 w-8" />Tanya Asisten AI Koperasi</CardTitle>
-            <CardDescription>Punya pertanyaan seputar koperasi? Tanyakan di sini untuk jawaban cepat!</CardDescription>
+            <CardTitle className="text-2xl sm:text-3xl font-headline text-primary flex items-center"><MessageCircleQuestion className="mr-3 h-7 w-7 sm:h-8 sm:w-8" />Tanya Asisten AI Koperasi</CardTitle>
+            <CardDescription className="text-sm sm:text-base">Punya pertanyaan seputar koperasi? Tanyakan di sini untuk jawaban cepat!</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAiQuestionSubmit} className="space-y-4">
@@ -207,9 +205,9 @@ export default function Home() {
                 onChange={(e) => setAiQuestion(e.target.value)}
                 placeholder="Ketik pertanyaan Anda di sini... (Contoh: Apa saja syarat menjadi anggota?)"
                 rows={3}
-                className="bg-background/70"
+                className="bg-background/70 text-sm sm:text-base"
               />
-              <Button type="submit" disabled={isAiLoading} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Button type="submit" disabled={isAiLoading} className="bg-accent hover:bg-accent/90 text-accent-foreground text-sm sm:text-base">
                 {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Tanya AI
               </Button>
@@ -217,13 +215,13 @@ export default function Home() {
             {isAiLoading && (
                 <div className="mt-6 p-4 border rounded-md bg-muted/30 text-center">
                     <Loader2 className="inline-block animate-spin h-6 w-6 text-primary" />
-                    <p className="text-muted-foreground">Asisten AI sedang berpikir...</p>
+                    <p className="text-muted-foreground text-sm sm:text-base">Asisten AI sedang berpikir...</p>
                 </div>
             )}
             {aiResponse && !isAiLoading && (
               <div className="mt-6 p-4 border rounded-md bg-muted/50">
-                <h4 className="font-semibold text-foreground mb-2">Jawaban AI:</h4>
-                <p className="text-foreground/90 whitespace-pre-wrap">{aiResponse}</p>
+                <h4 className="font-semibold text-foreground mb-2 text-sm sm:text-base">Jawaban AI:</h4>
+                <p className="text-foreground/90 whitespace-pre-wrap text-sm sm:text-base">{aiResponse}</p>
               </div>
             )}
           </CardContent>
@@ -233,21 +231,21 @@ export default function Home() {
       <section id="interactive-survey" className="container mx-auto px-4 py-8">
         <Card className="shadow-xl bg-card/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-3xl font-headline text-primary flex items-center">
-              <CheckCircle className="mr-3 h-8 w-8 text-green-500" /> Berikan Masukan Anda!
+            <CardTitle className="text-2xl sm:text-3xl font-headline text-primary flex items-center">
+              <CheckCircle className="mr-3 h-7 w-7 sm:h-8 sm:w-8 text-green-500" /> Berikan Masukan Anda!
             </CardTitle>
-            <CardDescription>Kami menghargai setiap masukan untuk {cooperativeInfo.name} yang lebih baik.</CardDescription>
+            <CardDescription className="text-sm sm:text-base">Kami menghargai setiap masukan untuk {cooperativeInfo.name} yang lebih baik.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSurveySubmit} className="space-y-6">
               <div>
-                <Label htmlFor="surveyRating" className="text-lg font-medium text-foreground">Rating Anda Tentang Koperasi Kami:</Label>
+                <Label htmlFor="surveyRating" className="text-base sm:text-lg font-medium text-foreground">Rating Anda Tentang Koperasi Kami:</Label>
                 <div className="flex items-center space-x-1 mt-2">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
                       className={cn(
-                        "h-8 w-8 cursor-pointer transition-colors",
+                        "h-7 w-7 sm:h-8 sm:w-8 cursor-pointer transition-colors",
                         (hoverSurveyRating || surveyRating) >= star ? "text-yellow-400 fill-yellow-400" : "text-gray-300 hover:text-yellow-300"
                       )}
                       onMouseEnter={() => setHoverSurveyRating(star)}
@@ -260,33 +258,33 @@ export default function Home() {
               </div>
 
               <div>
-                <Label htmlFor="surveyComment" className="text-lg font-medium text-foreground">Komentar atau Masukan:</Label>
+                <Label htmlFor="surveyComment" className="text-base sm:text-lg font-medium text-foreground">Komentar atau Masukan:</Label>
                 <Textarea
                   id="surveyComment"
                   value={surveyComment}
                   onChange={(e) => setSurveyComment(e.target.value)}
                   placeholder="Tuliskan komentar, saran, atau kritik Anda di sini..."
                   rows={4}
-                  className="mt-2 bg-background/70"
+                  className="mt-2 bg-background/70 text-sm sm:text-base"
                   aria-label="Komentar Survei"
                 />
               </div>
 
               {!user && (
                 <div>
-                  <Label htmlFor="surveySubmitterName" className="text-lg font-medium text-foreground">Nama Anda (Opsional):</Label>
+                  <Label htmlFor="surveySubmitterName" className="text-base sm:text-lg font-medium text-foreground">Nama Anda (Opsional):</Label>
                   <Input
                     id="surveySubmitterName"
                     value={surveySubmitterName}
                     onChange={(e) => setSurveySubmitterName(e.target.value)}
                     placeholder="Nama Anda"
-                    className="mt-2 bg-background/70"
+                    className="mt-2 bg-background/70 text-sm sm:text-base"
                     aria-label="Nama Pengirim Survei"
                   />
                 </div>
               )}
 
-              <Button type="submit" disabled={isSubmittingSurvey} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button type="submit" disabled={isSubmittingSurvey} className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm sm:text-base">
                 {isSubmittingSurvey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                 Kirim Masukan
               </Button>
