@@ -118,12 +118,12 @@ export default function Home() {
           <Image src="https://placehold.co/150x150.png" alt="Logo Koperasi" width={150} height={150} className="mx-auto mb-6 rounded-full shadow-2xl border-4 border-white" data-ai-hint="cooperative logo" />
           <h1 className="text-5xl font-headline font-bold text-primary-foreground drop-shadow-md mb-4">{cooperativeInfo.name}</h1>
           <p className="text-xl text-primary-foreground/90 mb-2">{cooperativeInfo.location}</p>
-          <p className="text-lg text-primary-foreground/90 mb-8">Tahun Pendirian: {cooperativeInfo.established}</p>
-          <div className="space-x-4">
-            <Button size="lg" asChild className="bg-primary-foreground text-primary hover:bg-gray-200 shadow-lg transform hover:scale-105 transition-transform">
+          <p className="text-lg text-primary-foreground/90">{cooperativeInfo.established}</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
+            <Button size="lg" asChild className="w-full sm:w-auto bg-primary-foreground text-primary hover:bg-gray-200 shadow-lg transform hover:scale-105 transition-transform">
               <Link href="/register"><UserPlus className="mr-2" /> Daftar Anggota</Link>
             </Button>
-            <Button variant="outline" size="lg" asChild className="text-primary-foreground border-primary-foreground hover:bg-primary hover:text-primary-foreground shadow-lg transform hover:scale-105 transition-transform">
+            <Button variant="outline" size="lg" asChild className="w-full sm:w-auto text-primary-foreground border-primary-foreground hover:bg-primary hover:text-primary-foreground shadow-lg transform hover:scale-105 transition-transform">
               <Link href="/login"><LogIn className="mr-2" /> Masuk</Link>
             </Button>
           </div>
