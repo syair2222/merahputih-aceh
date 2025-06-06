@@ -34,6 +34,7 @@ export const BusinessFieldsOptions = [
   'Teknologi Informasi / Jasa Digital',
   'Transportasi / Jasa Logistik',
   'Pendidikan & Pelatihan',
+  'Lainnya', // Added 'Lainnya' to BusinessFieldsOptions
 ] as const;
 export type BusinessField = typeof BusinessFieldsOptions[number];
 
@@ -62,7 +63,14 @@ export interface Agreement {
   agreedToBecomeMember: boolean;
 }
 
-export interface MemberRegistrationData extends PersonalData, ResidentialStatus, MembershipChoice, FinancialCommitment, DocumentAttachments, Agreement {
+export interface ReferralInformation {
+  referralSource?: 'member' | 'other_source' | 'no_referral';
+  referrerMemberId?: string;
+  referrerName?: string;
+  referralNotes?: string;
+}
+
+export interface MemberRegistrationData extends PersonalData, ResidentialStatus, MembershipChoice, FinancialCommitment, DocumentAttachments, Agreement, ReferralInformation {
   userId?: string; // Link to Firebase Auth UID
   username: string; // For login
   registrationTimestamp?: any; // Firestore Timestamp or string (ISO)

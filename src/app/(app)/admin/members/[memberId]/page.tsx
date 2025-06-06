@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon } from 'lucide-react';
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={cn("mb-3", fullWidth ? "col-span-2" : "")}>
@@ -42,9 +42,10 @@ const RenderDocument: React.FC<{ url?: string; alt: string; fileName?: string; d
     );
   }
 
-  const isPdf = url.toLowerCase().includes('.pdf');
+  const isPdf = url.toLowerCase().includes('.pdf') || url.toLowerCase().includes('?alt=media'); // Handle Firebase Storage PDF URLs
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
-  const isImage = imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
+  const isImage = imageExtensions.some(ext => url.toLowerCase().includes(ext)) && !isPdf;
+
 
   return (
     <Card className="w-full">
@@ -254,8 +255,10 @@ export default function MemberDetailPage() {
     'Tidak diketahui';
   
   const birthDateFormatted = memberData.birthDate ?
-    new Date(memberData.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric'}) :
-    'Tidak diketahui';
+    // Check if birthDate is already a Date object (from form) or string (from Firestore)
+    (typeof memberData.birthDate === 'string' ? new Date(memberData.birthDate) : memberData.birthDate as unknown as Date)
+        .toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric'}) 
+    : 'Tidak diketahui';
     
   const lastActionDateFormatted = memberData.lastAdminActionTimestamp ?
     new Date((memberData.lastAdminActionTimestamp as any).seconds * 1000).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})
@@ -290,6 +293,15 @@ export default function MemberDetailPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const getReferralSourceText = (source?: MemberRegistrationData['referralSource']) => {
+    switch (source) {
+        case 'member': return 'Anggota Koperasi';
+        case 'other_source': return 'Sumber Lain';
+        case 'no_referral': return 'Mendaftar Sendiri / Tidak Ada';
+        default: return 'Tidak Diketahui';
+    }
   };
 
   return (
@@ -395,6 +407,30 @@ export default function MemberDetailPage() {
              )}
         </CardContent>
       </Card>
+
+      {(memberData.referralSource && memberData.referralSource !== 'no_referral') && (
+        <Card>
+            <CardHeader className="flex flex-row items-center space-x-4 bg-muted/30">
+                <UsersIcon className="h-10 w-10 text-primary" />
+                <div>
+                    <CardTitle className="text-2xl font-headline text-accent">Informasi Rekomendasi</CardTitle>
+                    <CardDescription>Detail pendaftaran berdasarkan rekomendasi.</CardDescription>
+                </div>
+            </CardHeader>
+            <CardContent className="pt-6 grid md:grid-cols-2 gap-x-8 gap-y-4">
+                <DetailItem label="Sumber Rekomendasi" value={getReferralSourceText(memberData.referralSource)} />
+                {memberData.referralSource === 'member' && memberData.referrerMemberId && (
+                    <DetailItem label="ID/Nama Anggota Perekrut" value={memberData.referrerMemberId} />
+                )}
+                {memberData.referralSource === 'other_source' && memberData.referrerName && (
+                    <DetailItem label="Nama Perekrut / Sumber Lain" value={memberData.referrerName} />
+                )}
+                {memberData.referralNotes && (
+                    <DetailItem label="Catatan Rekomendasi" value={memberData.referralNotes} fullWidth />
+                )}
+            </CardContent>
+        </Card>
+      )}
 
       <Card className="no-print">
         <CardHeader className="flex flex-row items-center space-x-4 bg-muted/30">

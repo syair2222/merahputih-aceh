@@ -27,7 +27,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { MemberRegistrationData, MembershipType, BusinessField } from '@/types';
 import { BusinessFieldsOptions } from '@/types';
-import { CalendarIcon, Eye, EyeOff, Loader2, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, Eye, EyeOff, Loader2, UploadCloud, CheckCircle, AlertTriangle, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -116,7 +116,7 @@ const registrationSchema = z.object({
   // Step 4: Komitmen Keuangan
   agreedToCommitment: z.boolean().refine(val => val === true, { message: "Anda harus menyetujui komitmen keuangan." }),
 
-  // Step 5: Lampiran Dokumen
+  // Step 5: Lampiran Dokumen Tambahan
   pasFoto: fileListSchema(false), 
   pasFotoUrl: z.string({required_error: "Pas Foto wajib diupload."}).url("URL Pas Foto tidak valid atau upload gagal.").min(1, "Pas Foto wajib diupload."),
 
@@ -126,7 +126,13 @@ const registrationSchema = z.object({
   businessDocument: fileListSchema(false, [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES], "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF."),
   businessDocumentUrl: z.string().url().optional(),
 
-  // Step 6: Pernyataan
+  // Step 6: Informasi Rekomendasi (NEW)
+  referralSource: z.enum(['member', 'other_source', 'no_referral'], {description: "Sumber rekomendasi"}).default('no_referral'),
+  referrerMemberId: z.string().optional(),
+  referrerName: z.string().optional(),
+  referralNotes: z.string().optional(),
+
+  // Step 7: Pernyataan
   agreedToTerms: z.boolean().refine(val => val === true, { message: "Anda harus menyetujui pernyataan ini." }),
   agreedToBecomeMember: z.boolean().refine(val => val === true, { message: "Anda harus setuju untuk menjadi anggota." }),
 })
@@ -142,6 +148,24 @@ const registrationSchema = z.object({
 }, {
   message: "Dokumen usaha wajib diupload jika mendaftar sebagai produsen/UMKM.",
   path: ["businessDocumentUrl"],
+})
+.refine(data => {
+  if (data.referralSource === 'member') {
+    return !!data.referrerMemberId && data.referrerMemberId.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "ID Anggota Perekrut wajib diisi jika sumbernya adalah 'Anggota'.",
+  path: ["referrerMemberId"],
+})
+.refine(data => {
+  if (data.referralSource === 'other_source') {
+    return !!data.referrerName && data.referrerName.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Nama Perekrut wajib diisi jika sumbernya adalah 'Sumber Lain'.",
+  path: ["referrerName"],
 });
 
 
@@ -152,11 +176,12 @@ type FileInputFieldName = 'ktpScan' | 'kkScan' | 'selfieKtp' | 'pasFoto' | 'domi
 const steps = [
   { id: 'akun', title: 'Data Akun', fields: ['username', 'email', 'password', 'confirmPassword'] },
   { id: 'pribadi', title: 'Data Pribadi', fields: ['fullName', 'nik', 'kk', 'birthPlace', 'birthDate', 'gender', 'addressDusun', 'addressRtRw', 'addressDesa', 'addressKecamatan', 'phoneNumber', 'currentJob'] },
-  { id: 'kependudukan', title: 'Status Kependudukan & Dokumen Identitas', fields: ['isPermanentResident', 'residentDesaName', 'ktpScan', 'ktpScanUrl', 'kkScan', 'kkScanUrl', 'selfieKtp', 'selfieKtpUrl'] },
-  { id: 'keanggotaan', title: 'Pilihan Keanggotaan & Usaha', fields: ['membershipType', 'businessFields', 'otherBusinessField'] },
+  { id: 'kependudukan', title: 'Identitas & Domisili', fields: ['isPermanentResident', 'residentDesaName', 'ktpScan', 'ktpScanUrl', 'kkScan', 'kkScanUrl', 'selfieKtp', 'selfieKtpUrl'] },
+  { id: 'keanggotaan', title: 'Keanggotaan & Usaha', fields: ['membershipType', 'businessFields', 'otherBusinessField'] },
   { id: 'keuangan', title: 'Komitmen Keuangan', fields: ['agreedToCommitment'] },
-  { id: 'dokumen', title: 'Lampiran Dokumen Tambahan', fields: ['pasFoto', 'pasFotoUrl', 'domicileProof', 'domicileProofUrl', 'businessDocument', 'businessDocumentUrl'] },
-  { id: 'pernyataan', title: 'Pernyataan & Persetujuan', fields: ['agreedToTerms', 'agreedToBecomeMember'] },
+  { id: 'dokumen', title: 'Dokumen Tambahan', fields: ['pasFoto', 'pasFotoUrl', 'domicileProof', 'domicileProofUrl', 'businessDocument', 'businessDocumentUrl'] },
+  { id: 'rekomendasi', title: 'Info Rekomendasi', fields: ['referralSource', 'referrerMemberId', 'referrerName', 'referralNotes'] },
+  { id: 'pernyataan', title: 'Pernyataan', fields: ['agreedToTerms', 'agreedToBecomeMember'] },
 ];
 
 export default function RegistrationForm() {
@@ -179,15 +204,19 @@ export default function RegistrationForm() {
       fullName: '', nik: '', kk: '', birthPlace: '', gender: undefined, birthDate: undefined,
       addressDusun: '', addressRtRw: '', addressDesa: '', addressKecamatan: '',
       phoneNumber: '', currentJob: '',
-      isPermanentResident: false, residentDesaName: '', // Default residentDesaName to empty string
+      isPermanentResident: false, residentDesaName: '', 
       ktpScan: undefined, ktpScanUrl: undefined,
       kkScan: undefined, kkScanUrl: undefined,
       selfieKtp: undefined, selfieKtpUrl: undefined,
-      membershipType: undefined, businessFields: [], otherBusinessField: '', // Default otherBusinessField to empty string
+      membershipType: undefined, businessFields: [], otherBusinessField: '', 
       agreedToCommitment: false,
       pasFoto: undefined, pasFotoUrl: undefined,
       domicileProof: undefined, domicileProofUrl: undefined,
       businessDocument: undefined, businessDocumentUrl: undefined,
+      referralSource: 'no_referral', // Default value
+      referrerMemberId: '',
+      referrerName: '',
+      referralNotes: '',
       agreedToTerms: false, agreedToBecomeMember: false,
     },
   });
@@ -202,7 +231,7 @@ export default function RegistrationForm() {
     if (!file) {
       form.setValue(fileUrlFieldNameKey, undefined);
       form.clearErrors(fileUrlFieldNameKey);
-      form.trigger(fileUrlFieldNameKey); // Trigger validation to re-evaluate dependent fields or overall form state
+      form.trigger(fileUrlFieldNameKey); 
       return;
     }
 
@@ -314,22 +343,19 @@ export default function RegistrationForm() {
         registrationTimestamp: serverTimestamp(),
         status: 'pending',
         otpVerified: false,
+        referralSource: data.referralSource,
+        referralNotes: data.referralNotes,
       };
 
       if (data.kk) memberDataForFirestore.kk = data.kk;
-      
-      if (data.isPermanentResident) {
-        memberDataForFirestore.residentDesaName = data.residentDesaName || ''; 
-      }
-
+      if (data.isPermanentResident) memberDataForFirestore.residentDesaName = data.residentDesaName || '';
       if (data.kkScanUrl) memberDataForFirestore.kkScanUrl = data.kkScanUrl;
-      
-      if (data.businessFields.includes('Lainnya')) {
-        memberDataForFirestore.otherBusinessField = data.otherBusinessField || '';
-      }
-
+      if (data.businessFields.includes('Lainnya')) memberDataForFirestore.otherBusinessField = data.otherBusinessField || '';
       if (data.domicileProofUrl) memberDataForFirestore.domicileProofUrl = data.domicileProofUrl;
       if (data.businessDocumentUrl) memberDataForFirestore.businessDocumentUrl = data.businessDocumentUrl;
+      if (data.referralSource === 'member' && data.referrerMemberId) memberDataForFirestore.referrerMemberId = data.referrerMemberId;
+      if (data.referralSource === 'other_source' && data.referrerName) memberDataForFirestore.referrerName = data.referrerName;
+
 
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
@@ -691,7 +717,79 @@ export default function RegistrationForm() {
             {renderFileInput('businessDocument', 'Upload Dokumen Usaha (Jika Produsen/UMKM)', 'Surat Izin Usaha, dll. Format: JPG, PNG, WEBP, PDF.', true, 'business document')}
           </div>
         );
-      case 6: // Pernyataan
+      case 6: // Informasi Rekomendasi
+        return (
+          <div className="space-y-4">
+            <FormField
+              control={form.control}
+              name="referralSource"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Siapa yang merekomendasikan Anda?</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex flex-col space-y-1"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl><RadioGroupItem value="no_referral" /></FormControl>
+                        <FormLabel className="font-normal">Tidak ada / Mendaftar sendiri</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl><RadioGroupItem value="member" /></FormControl>
+                        <FormLabel className="font-normal">Direkomendasikan oleh Anggota Koperasi</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl><RadioGroupItem value="other_source" /></FormControl>
+                        <FormLabel className="font-normal">Direkomendasikan dari Sumber Lain</FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {form.watch('referralSource') === 'member' && (
+              <FormField
+                control={form.control}
+                name="referrerMemberId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ID Anggota / Nama Anggota yang Merekomendasikan</FormLabel>
+                    <FormControl><Input {...field} placeholder="Masukkan ID atau Nama Anggota" value={field.value ?? ''}/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {form.watch('referralSource') === 'other_source' && (
+              <FormField
+                control={form.control}
+                name="referrerName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nama Perekrut / Sumber Rekomendasi Lain</FormLabel>
+                    <FormControl><Input {...field} placeholder="Cth: Teman, Brosur, Sosial Media" value={field.value ?? ''}/></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <FormField
+              control={form.control}
+              name="referralNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Catatan Tambahan Mengenai Rekomendasi (Opsional)</FormLabel>
+                  <FormControl><Textarea {...field} placeholder="Informasi tambahan..." value={field.value ?? ''} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        );
+      case 7: // Pernyataan
         return (
           <div className="space-y-4">
             <FormField control={form.control} name="agreedToTerms" render={({ field }) => (
