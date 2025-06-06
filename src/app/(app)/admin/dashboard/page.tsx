@@ -30,6 +30,8 @@ export default function AdminDashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // AppLayout handles the case where user is null after loading.
+  // This useEffect primarily handles role-based redirection if the user is authenticated but not an admin.
   useEffect(() => {
     if (!loading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
       router.push('/'); 
@@ -46,16 +48,21 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // If AppLayout has done its job, 'user' should not be null here if 'loading' is false.
+  // This check is a secondary guard, primarily for role validation.
   if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
             <Alert variant="destructive" className="max-w-md">
                 <ShieldAlert className="h-4 w-4" />
                 <AlertTitle>Akses Ditolak</AlertTitle>
-                <AlertDescription>Anda tidak memiliki izin untuk mengakses halaman ini. Silakan login dengan akun admin.</AlertDescription>
+                <AlertDescription>
+                  Anda tidak memiliki izin untuk mengakses halaman ini. 
+                  Jika Anda yakin ini adalah kesalahan, coba logout dan login kembali atau hubungi administrator.
+                </AlertDescription>
             </Alert>
-            <Button onClick={() => router.push('/login')} className="mt-6">
-              Ke Halaman Login
+            <Button onClick={() => router.push(user ? '/' : '/login')} className="mt-6">
+              {user ? 'Kembali ke Beranda' : 'Ke Halaman Login'}
             </Button>
         </div>
      );

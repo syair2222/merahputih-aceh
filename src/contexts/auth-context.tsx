@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true); // Pastikan loading true saat mulai memproses status auth
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         let userProfileData: UserProfile = { ...firebaseUser } as UserProfile;
@@ -45,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const adminConfig = firebaseUser.email ? predefinedAdminEmails[firebaseUser.email] : undefined;
 
         if (adminConfig) {
-          // This is a predefined admin email
           userProfileData.role = adminConfig.role;
           userProfileData.displayName = adminConfig.displayName;
 
@@ -57,24 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             photoURL: firebaseUser.photoURL || null,
             createdAt: serverTimestamp(),
           }, { merge: true });
-          // Predefined admins do not fill member registration data, so no 'members' document is created/expected here.
         
         } else {
-          // Not a predefined admin, handle as a regular user/member
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
             userProfileData.role = userData.role;
-            // Use displayName from Firestore if available, otherwise from Firebase Auth
             userProfileData.displayName = userData.displayName || firebaseUser.displayName;
           } else {
-            // New user (not a predefined admin) who doesn't have a 'users' document yet.
-            // This typically means they are a prospective member who needs to complete registration.
-            // The registration form itself is responsible for creating the 'members' document
-            // and fully populating the 'users' document.
-            // Here, we set a default 'prospective_member' role for the context.
             userProfileData.role = 'prospective_member';
-            userProfileData.displayName = firebaseUser.displayName || 'Calon Anggota'; // Or "Anggota Baru"
+            userProfileData.displayName = firebaseUser.displayName || 'Calon Anggota';
             
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
@@ -90,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
       }
-      setLoading(false);
+      setLoading(false); // setLoading(false) HANYA setelah semua proses selesai
     });
 
     return () => unsubscribe();
@@ -103,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
     } catch (error) {
       console.error("Error signing out: ", error);
-      // Handle error (e.g., show toast)
     } finally {
       setLoading(false);
     }
