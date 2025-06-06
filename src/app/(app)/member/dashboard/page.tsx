@@ -7,7 +7,7 @@ import Link from "next/link";
 import { doc, getDoc, collection, query, where, orderBy, getDocs, Timestamp, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
-import type { MemberRegistrationData, FacilityApplicationData } from "@/types";
+import type { MemberRegistrationData, FacilityApplicationData, RequestedRecommendation } from "@/types";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3 } from "lucide-react";
+import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3, Star, Handshake, BellRing } from "lucide-react";
 import ApplyFacilityForm from "@/components/member/apply-facility-form";
 
 // Re-define statusDisplay if not exported from types (or ensure it is exported)
@@ -50,6 +50,15 @@ const statusDisplayMemberRegistration: Record<MemberRegistrationData['status'], 
   requires_correction: 'Data Perlu Diperbaiki',
 };
 
+interface PendingRecommendationRequest {
+  applicationId: string;
+  applicantName: string;
+  facilityType: string;
+  applicantUserId: string;
+  applicationDate: Date;
+}
+
+
 export default function MemberDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -58,6 +67,9 @@ export default function MemberDashboardPage() {
   const [recentApplications, setRecentApplications] = useState<FacilityApplicationData[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(true);
   const [isApplyFacilityModalOpen, setIsApplyFacilityModalOpen] = useState(false);
+  const [pendingRecommendationRequests, setPendingRecommendationRequests] = useState<PendingRecommendationRequest[]>([]);
+  const [recsLoading, setRecsLoading] = useState(true);
+
 
   const fetchMemberData = useCallback(async () => {
     if (!user || !user.uid) {
@@ -74,14 +86,14 @@ export default function MemberDashboardPage() {
         if (data.registrationTimestamp && typeof (data.registrationTimestamp as any).seconds === 'number') {
             registrationDate = new Date((data.registrationTimestamp as any).seconds * 1000);
         }
-        setMemberData({ ...data, registrationTimestamp: registrationDate });
+        setMemberData({ ...data, registrationTimestamp: registrationDate, adminRating: data.adminRating });
       } else {
         console.warn("Data anggota tidak ditemukan di Firestore untuk UID:", user.uid);
-        setMemberData(null); 
+        setMemberData(null);
       }
     } catch (err) {
       console.error("Error memuat data anggota:", err);
-      setMemberData(null); 
+      setMemberData(null);
     } finally {
       setMemberLoading(false);
     }
@@ -101,7 +113,7 @@ export default function MemberDashboardPage() {
         limit(3)
       );
       const querySnapshot = await getDocs(q);
-      const apps = querySnapshot.docs.map(docSnap => ({ // Renamed doc to docSnap
+      const apps = querySnapshot.docs.map(docSnap => ({
         id: docSnap.id,
         ...(docSnap.data() as Omit<FacilityApplicationData, 'id'>),
         applicationDate: (docSnap.data().applicationDate as Timestamp)?.toDate(),
@@ -109,11 +121,54 @@ export default function MemberDashboardPage() {
       setRecentApplications(apps);
     } catch (error) {
       console.error("Error fetching recent applications:", error);
-      setRecentApplications([]); 
+      setRecentApplications([]);
     } finally {
       setApplicationsLoading(false);
     }
   }, [user]);
+
+  const fetchPendingRecommendations = useCallback(async () => {
+    if (!user || !user.uid) {
+        setRecsLoading(false);
+        return;
+    }
+    setRecsLoading(true);
+    try {
+        const applicationsRef = collection(db, 'facilityApplications');
+        // This query is tricky with array-contains and status.
+        // Firestore cannot query for "array contains object where field X is Y".
+        // We have to fetch applications where the user is *any* recommender first, then filter client-side.
+        const q = query(applicationsRef, where('requestedRecommendations', 'array-contains-any', [{memberId: user.uid, memberName: '', status: 'pending' as const}]));
+
+        const querySnapshot = await getDocs(q);
+        const pendingRequests: PendingRecommendationRequest[] = [];
+        querySnapshot.forEach(docSnap => {
+            const app = docSnap.data() as FacilityApplicationData;
+            if (app.requestedRecommendations) {
+                const userRecRequest = app.requestedRecommendations.find(
+                    rec => rec.memberId === user.uid && rec.status === 'pending'
+                );
+                if (userRecRequest) {
+                    pendingRequests.push({
+                        applicationId: docSnap.id,
+                        applicantName: app.memberFullName,
+                        facilityType: app.specificProductName ? `${app.facilityType} (${app.specificProductName})` : app.facilityType,
+                        applicantUserId: app.userId,
+                        applicationDate: (app.applicationDate as Timestamp)?.toDate() || new Date(),
+                    });
+                }
+            }
+        });
+         // Sort by application date, most recent first
+        pendingRequests.sort((a, b) => b.applicationDate.getTime() - a.applicationDate.getTime());
+        setPendingRecommendationRequests(pendingRequests);
+    } catch (error) {
+        console.error("Error fetching pending recommendations:", error);
+    } finally {
+        setRecsLoading(false);
+    }
+  }, [user]);
+
 
   useEffect(() => {
     if (authLoading) return;
@@ -127,23 +182,25 @@ export default function MemberDashboardPage() {
       if (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas') {
         router.push('/admin/dashboard');
       } else {
-        router.push('/'); 
+        router.push('/');
       }
       return;
     }
-    
+
     fetchMemberData();
     if (user.status === 'approved') {
         fetchRecentApplications();
+        fetchPendingRecommendations();
     } else {
-        setApplicationsLoading(false); 
+        setApplicationsLoading(false);
+        setRecsLoading(false);
     }
 
-  }, [user, authLoading, router, fetchMemberData, fetchRecentApplications]);
-  
+  }, [user, authLoading, router, fetchMemberData, fetchRecentApplications, fetchPendingRecommendations]);
+
   const handleFormSubmitSuccess = () => {
     setIsApplyFacilityModalOpen(false);
-    fetchRecentApplications(); 
+    fetchRecentApplications();
   };
 
 
@@ -237,7 +294,7 @@ export default function MemberDashboardPage() {
                             dateValue = new Date(memberData.registrationTimestamp);
                         } else if (typeof memberData.registrationTimestamp === 'object' &&
                                    memberData.registrationTimestamp !== null &&
-                                   'seconds' in (memberData.registrationTimestamp as any) && 
+                                   'seconds' in (memberData.registrationTimestamp as any) &&
                                    typeof (memberData.registrationTimestamp as any).seconds === 'number') {
                             dateValue = new Date((memberData.registrationTimestamp as any).seconds * 1000);
                         }
@@ -298,7 +355,7 @@ export default function MemberDashboardPage() {
                           <p className="font-semibold text-orange-700">Komentar Admin:</p>
                           <p className="text-sm text-orange-600">{memberData.adminComments}</p>
                           <Button variant="link" size="sm" className="p-0 h-auto mt-1 text-orange-600" asChild>
-                            <Link href="/profile/edit">Perbaiki Data Sekarang</Link> {/* Placeholder link */}
+                            <Link href="/profile/edit">Perbaiki Data Sekarang</Link>
                           </Button>
                         </div>
                       );
@@ -317,6 +374,21 @@ export default function MemberDashboardPage() {
                     </div>
                     <p><strong>Nomor Anggota:</strong> {memberData.memberIdNumber || 'Belum Ditetapkan'}</p>
                     <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
+                    {memberData.adminRating && memberData.adminRating > 0 && (
+                        <div className="pt-2">
+                            <p className="font-semibold text-sm">Rating dari Koperasi:</p>
+                            <div className="flex items-center">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                    key={i}
+                                    className={`h-5 w-5 ${i < memberData.adminRating! ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                                    />
+                                ))}
+                                <span className="ml-2 text-xs text-muted-foreground">({memberData.adminRating} dari 5 bintang)</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Ini adalah penilaian umum dari koperasi. Jaga terus kepercayaan dan partisipasi Anda!</p>
+                        </div>
+                    )}
                     {adminCommentsMessage}
                     {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
                     {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
@@ -353,7 +425,7 @@ export default function MemberDashboardPage() {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
-                    
+
                     <Button variant="outline" className="w-full justify-start p-4 h-auto text-left border-primary/30 hover:bg-primary/10" asChild>
                       <Link href="/member/facilities/history">
                         <History className="h-6 w-6 mr-3 text-primary" />
@@ -378,6 +450,52 @@ export default function MemberDashboardPage() {
                         <span className="flex flex-col"><span className="font-semibold">Profil Saya</span></span>
                       </Link>
                     </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-lg border">
+                <CardHeader>
+                  <CardTitle className="text-xl font-headline text-accent flex items-center">
+                    <BellRing className="mr-2 h-6 w-6" /> Permintaan Rekomendasi untuk Anda
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {recsLoading ? (
+                    <div className="flex items-center justify-center py-6"><Loader2 className="h-8 w-8 animate-spin mr-2 text-primary" /> Memuat permintaan...</div>
+                  ) : pendingRecommendationRequests.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nama Pemohon</TableHead>
+                          <TableHead className="hidden sm:table-cell">Jenis Fasilitas</TableHead>
+                          <TableHead className="hidden md:table-cell">Tgl. Pengajuan</TableHead>
+                          <TableHead className="text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingRecommendationRequests.map(req => (
+                          <TableRow key={req.applicationId}>
+                            <TableCell className="font-medium">{req.applicantName}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{req.facilityType}</TableCell>
+                            <TableCell className="hidden md:table-cell">{req.applicationDate.toLocaleDateString('id-ID')}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/member/recommendations/${req.applicationId}`}>
+                                  <Handshake className="mr-1 h-4 w-4" /> Beri Rekomendasi
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Alert>
+                      <BellRing className="h-4 w-4"/>
+                      <AlertTitle>Tidak Ada Permintaan</AlertTitle>
+                      <AlertDescription>Saat ini tidak ada anggota lain yang meminta rekomendasi dari Anda.</AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
 
@@ -412,7 +530,7 @@ export default function MemberDashboardPage() {
                                           </TableCell>
                                           <TableCell className="text-right">
                                               <Button variant="outline" size="sm" asChild>
-                                                <Link href={`/member/facilities/history#${app.id}`}> 
+                                                <Link href={`/member/facilities/history#${app.id}`}>
                                                   <Eye className="mr-1 h-4 w-4" /> Detail
                                                 </Link>
                                               </Button>
@@ -433,7 +551,7 @@ export default function MemberDashboardPage() {
                         </Button>
                   </CardContent>
               </Card>
-              
+
               <Card className="shadow-lg border">
                   <CardHeader>
                       <CardTitle className="text-xl font-headline text-accent flex items-center">
@@ -441,19 +559,11 @@ export default function MemberDashboardPage() {
                       </CardTitle>
                   </CardHeader>
                   <CardContent>
-                      {/* Placeholder for messages/chat */}
                       <Alert>
                           <MessageSquare className="h-4 w-4" />
                           <AlertTitle>Segera Hadir</AlertTitle>
                           <AlertDescription>Fitur pesan dan notifikasi dari admin akan segera tersedia di sini.</AlertDescription>
                       </Alert>
-                      {/* Example of how a message might look:
-                      <div className="mt-4 p-3 border rounded-md bg-muted/50">
-                          <p className="font-semibold text-sm">Admin Koperasi</p>
-                          <p className="text-xs text-muted-foreground">2 jam lalu</p>
-                          <p className="mt-1 text-sm">Pengajuan pinjaman Anda untuk pembelian alat sudah kami terima dan sedang diproses. Mohon tunggu informasi selanjutnya.</p>
-                      </div>
-                      */}
                   </CardContent>
               </Card>
             </>

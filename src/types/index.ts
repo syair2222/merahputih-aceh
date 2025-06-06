@@ -133,6 +133,14 @@ export const MemberBusinessAreaOptions = [
 ] as const;
 export type MemberBusinessArea = typeof MemberBusinessAreaOptions[number];
 
+export interface RequestedRecommendation {
+  memberId: string;
+  memberName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  comment?: string; // Recommender's comment
+  decisionDate?: any; // Firestore Timestamp
+}
+
 export interface FacilityApplicationData {
   id?: string; // Firestore document ID
   userId: string; // Firebase Auth UID of the member
@@ -151,10 +159,7 @@ export interface FacilityApplicationData {
   hasAppliedBefore: 'Ya' | 'Tidak';
   previousApplicationDetails?: string;
 
-  // For file uploads, store an array of objects with name and URL
-  // This matches how we might structure it in Firestore if using Cloudinary URLs
   supportingDocuments?: Array<{ name: string; url: string; type: string; size: number }>;
-  // These are for the form handling with FileList
   proposalFile?: FileList;
   productPhotoFile?: FileList;
   statementLetterFile?: FileList;
@@ -164,13 +169,12 @@ export interface FacilityApplicationData {
 
   applicationDate: any; // Firestore Timestamp
   status: 'pending_review' | 'pending_approval' | 'approved' | 'rejected' | 'completed' | 'cancelled_by_member' | 'requires_correction';
-  adminComments?: string; // General comments or reasons for rejection/correction
-  decisionMaker?: string; // Role or name of admin who decided
-  decisionDate?: any; // Firestore Timestamp
-  lastUpdated?: any; // Firestore Timestamp
+  adminComments?: string;
+  decisionMaker?: string;
+  decisionDate?: any;
+  lastUpdated?: any;
 
-  // Placeholders for recommendation feature
-  requestedRecommendations?: Array<{ memberId: string; memberName: string; status: 'pending' | 'approved' | 'rejected' }>;
+  requestedRecommendations?: RequestedRecommendation[];
   recommendationCount?: number;
 }
 
@@ -194,7 +198,6 @@ export interface FacilityReport {
   photoUrls?: string[]; // URLs of uploaded photos
 }
 
-// For user credentials in Firestore (separate from Firebase Auth user object)
 export interface UserDocument {
   uid: string;
   email: string | null;
@@ -202,6 +205,5 @@ export interface UserDocument {
   role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member';
   status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
   photoURL?: string | null;
-  memberIdNumber?: string; // For members
+  memberIdNumber?: string;
 }
-
