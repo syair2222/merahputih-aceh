@@ -67,10 +67,11 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   username: string; // For login
   registrationTimestamp?: any; // Firestore Timestamp or string (ISO)
   ipAddress?: string; // Optional, server-generated
-  status: 'pending' | 'approved' | 'rejected' | 'verified'; // 'verified' could be post-OTP
+  status: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction'; // 'verified' could be post-OTP, 'requires_correction' added
   adminComments?: string;
   otpVerified?: boolean; // For OTP verification status
   memberIdNumber?: string; // Cooperative member ID, generated after approval
+  lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
 }
 
 
@@ -154,6 +155,16 @@ export interface FacilityApplicationData {
   lastUpdated?: any; // Firestore Timestamp
 }
 
+export const statusDisplay: Record<FacilityApplicationData['status'], string> = {
+  pending_review: 'Menunggu Review',
+  pending_approval: 'Menunggu Persetujuan',
+  approved: 'Disetujui',
+  rejected: 'Ditolak',
+  completed: 'Selesai',
+  cancelled_by_member: 'Dibatalkan Anggota',
+  requires_correction: 'Perlu Perbaikan'
+};
+
 
 export interface FacilityReport {
   id: string;
@@ -170,6 +181,7 @@ export interface UserDocument {
   email: string | null;
   displayName: string | null;
   role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member';
+  status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
   photoURL?: string | null;
   memberIdNumber?: string; // For members
 }

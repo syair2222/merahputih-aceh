@@ -3,27 +3,29 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import type { MemberRegistrationData } from '@/types';
-import { cn } from '@/lib/utils'; // Added import for cn
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { FormLabel } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3 } from 'lucide-react';
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={cn("mb-3", fullWidth ? "col-span-2" : "")}>
     <p className="text-sm font-medium text-muted-foreground">{label}</p>
-    {typeof value === 'string' ? <p className="text-md text-foreground">{value || '-'}</p> : value || '-'}
+    {typeof value === 'string' ? <p className="text-md text-foreground whitespace-pre-wrap">{value || '-'}</p> : value || '-'}
   </div>
 );
 
@@ -40,10 +42,8 @@ const RenderDocument: React.FC<{ url?: string; alt: string; fileName?: string; d
   }
 
   const isPdf = url.toLowerCase().includes('.pdf');
-  // More robust image check
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
   const isImage = imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
-
 
   return (
     <Card className="w-full">
@@ -69,45 +69,108 @@ const RenderDocument: React.FC<{ url?: string; alt: string; fileName?: string; d
 
 
 export default function MemberDetailPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user: adminUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const memberId = params.memberId as string;
+  const { toast } = useToast();
 
   const [memberData, setMemberData] = useState<MemberRegistrationData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminComments, setAdminComments] = useState('');
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  const fetchMemberData = useCallback(async () => {
+    setPageLoading(true);
+    setError(null);
+    try {
+      const memberDocRef = doc(db, 'members', memberId);
+      const memberDocSnap = await getDoc(memberDocRef);
+
+      if (memberDocSnap.exists()) {
+        const data = memberDocSnap.data() as MemberRegistrationData;
+        setMemberData(data);
+        setAdminComments(data.adminComments || ''); 
+      } else {
+        setError('Data anggota tidak ditemukan.');
+      }
+    } catch (err) {
+      console.error("Error fetching member data:", err);
+      setError('Gagal memuat data anggota.');
+    } finally {
+      setPageLoading(false);
+    }
+  }, [memberId]);
+
 
   useEffect(() => {
-    if (!authLoading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    if (!authLoading && adminUser && !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
       router.push('/'); 
     }
-  }, [user, authLoading, router]);
+  }, [adminUser, authLoading, router]);
 
   useEffect(() => {
     if (memberId) {
-      const fetchMemberData = async () => {
-        setPageLoading(true);
-        setError(null);
-        try {
-          const memberDocRef = doc(db, 'members', memberId);
-          const memberDocSnap = await getDoc(memberDocRef);
-
-          if (memberDocSnap.exists()) {
-            setMemberData(memberDocSnap.data() as MemberRegistrationData);
-          } else {
-            setError('Data anggota tidak ditemukan.');
-          }
-        } catch (err) {
-          console.error("Error fetching member data:", err);
-          setError('Gagal memuat data anggota.');
-        } finally {
-          setPageLoading(false);
-        }
-      };
       fetchMemberData();
     }
-  }, [memberId]);
+  }, [memberId, fetchMemberData]);
+
+  const generateMemberIdNumber = () => {
+    const year = new Date().getFullYear().toString().slice(-2);
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `KMP-${year}-${randomPart}`;
+  };
+
+  const handleAdminAction = async (newStatus: MemberRegistrationData['status'], newRole?: 'member' | 'prospective_member') => {
+    if (!memberData || !memberId) return;
+
+    if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminComments.trim()) {
+      toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive" });
+      return;
+    }
+
+    setIsProcessingAction(true);
+    try {
+      const memberDocRef = doc(db, 'members', memberId);
+      const userDocRef = doc(db, 'users', memberId); // Assuming memberId is also the userId
+
+      const memberUpdateData: Partial<MemberRegistrationData> = {
+        status: newStatus,
+        adminComments: adminComments.trim(),
+        lastAdminActionTimestamp: serverTimestamp(),
+      };
+
+      const userUpdateData: any = {
+        status: newStatus, // Mirror status
+      };
+
+      if (newStatus === 'approved') {
+        memberUpdateData.memberIdNumber = memberData.memberIdNumber || generateMemberIdNumber();
+        if (newRole) userUpdateData.role = newRole;
+        userUpdateData.status = 'approved'; // explicit user status for approved members
+      } else if (newStatus === 'rejected' || newStatus === 'requires_correction') {
+        // No role change for user, just status
+      }
+      
+      if (newStatus === 'pending' || newStatus === 'verified'){ // if admin resets to pending/verified
+         if (newRole) userUpdateData.role = newRole; // e.g. prospective_member
+      }
+
+
+      await updateDoc(memberDocRef, memberUpdateData);
+      await updateDoc(userDocRef, userUpdateData);
+
+      toast({ title: "Aksi Berhasil", description: `Status anggota telah diperbarui menjadi ${newStatus}.` });
+      fetchMemberData(); // Refresh data
+    } catch (err) {
+      console.error("Error updating member status:", err);
+      toast({ title: "Aksi Gagal", description: "Terjadi kesalahan saat memproses aksi.", variant: "destructive" });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
 
   if (authLoading || pageLoading) {
     return (
@@ -118,7 +181,7 @@ export default function MemberDetailPage() {
     );
   }
 
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
      return (
         <div className="text-center p-10">
             <Alert variant="destructive">
@@ -168,22 +231,27 @@ export default function MemberDetailPage() {
     new Date(memberData.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric'}) :
     'Tidak diketahui';
 
-  const getStatusBadge = (status: MemberRegistrationData['status']) => {
+  const getStatusBadge = (status?: MemberRegistrationData['status']) => {
+    if (!status) return <Badge variant="outline">Tidak Diketahui</Badge>;
     switch (status) {
       case 'approved': return <Badge variant="default" className="bg-green-500 text-white">Disetujui</Badge>;
       case 'pending': return <Badge variant="secondary" className="bg-yellow-500 text-white">Menunggu Persetujuan</Badge>;
       case 'rejected': return <Badge variant="destructive">Ditolak</Badge>;
       case 'verified': return <Badge variant="default" className="bg-blue-500 text-white">Terverifikasi</Badge>;
+      case 'requires_correction': return <Badge variant="default" className="bg-orange-500 text-white">Perlu Perbaikan</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  const canPerformActions = memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction';
+  const canModifyApprovedOrRejected = memberData.status === 'approved' || memberData.status === 'rejected';
 
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-headline font-bold text-primary">Detail Anggota: {memberData.fullName}</h1>
-        <Button onClick={() => router.back()} variant="outline">
+        <Button onClick={() => router.push('/admin/members')} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Daftar Anggota
         </Button>
       </div>
@@ -193,7 +261,7 @@ export default function MemberDetailPage() {
             <UserCircle className="h-10 w-10 text-primary" />
             <div>
                 <CardTitle className="text-2xl font-headline text-accent">Informasi Pribadi & Akun</CardTitle>
-                <CardDescription>Data personal dan akun pendaftar.</CardDescription>
+                <CardDescription>Data personal dan akun pendaftar. Nomor Anggota: <strong>{memberData.memberIdNumber || "Belum Ada"}</strong></CardDescription>
             </div>
         </CardHeader>
         <CardContent className="pt-6 grid md:grid-cols-2 gap-x-8 gap-y-4">
@@ -257,9 +325,9 @@ export default function MemberDetailPage() {
             <DetailItem label="Setuju Syarat & Ketentuan" value={memberData.agreedToTerms ? "Ya" : "Tidak"} />
             <DetailItem label="Setuju Menjadi Anggota" value={memberData.agreedToBecomeMember ? "Ya" : "Tidak"} />
             <DetailItem label="Tanggal Registrasi" value={registrationDate} />
-            <DetailItem label="Status Pendaftaran" value={getStatusBadge(memberData.status)} />
+            <DetailItem label="Status Pendaftaran Saat Ini" value={getStatusBadge(memberData.status)} />
              {memberData.adminComments && (
-                <DetailItem label="Komentar Admin" value={memberData.adminComments} fullWidth />
+                <DetailItem label="Komentar Admin Sebelumnya" value={memberData.adminComments} fullWidth />
              )}
         </CardContent>
       </Card>
@@ -284,20 +352,82 @@ export default function MemberDetailPage() {
         </CardContent>
       </Card>
       
-      {/* Placeholder for Actions: Approve, Reject, Edit, etc. */}
       <Card>
         <CardHeader>
-            <CardTitle>Aksi Admin</CardTitle>
+            <CardTitle className="text-xl font-headline text-accent">Aksi Admin</CardTitle>
+            <CardDescription>Lakukan tindakan terhadap pendaftaran anggota ini.</CardDescription>
         </CardHeader>
-        <CardContent className="flex space-x-2">
-            <Button variant="default" disabled>Setujui Pendaftaran (Segera Hadir)</Button>
-            <Button variant="destructive" disabled>Tolak Pendaftaran (Segera Hadir)</Button>
-            <Button variant="outline" disabled>Minta Perbaikan Data (Segera Hadir)</Button>
+        <CardContent className="space-y-4">
+            <div>
+              <FormLabel htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</FormLabel>
+              <Textarea
+                id="adminComments"
+                value={adminComments}
+                onChange={(e) => setAdminComments(e.target.value)}
+                placeholder="Tuliskan alasan penolakan, permintaan perbaikan, atau catatan lain..."
+                rows={3}
+                className="mt-1"
+                disabled={isProcessingAction}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 pt-2">
+                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'rejected') && (
+                    <Button 
+                        onClick={() => handleAdminAction('approved', 'member')} 
+                        disabled={isProcessingAction}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
+                        Setujui Pendaftaran
+                    </Button>
+                )}
+                
+                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
+                    <Button 
+                        onClick={() => handleAdminAction('rejected')} 
+                        variant="destructive" 
+                        disabled={isProcessingAction || ((memberData.status !== 'pending' && memberData.status !== 'verified' && memberData.status !== 'requires_correction' && memberData.status !== 'approved') || !adminComments.trim())}
+                        title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk menolak" : ""}
+                    >
+                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                        Tolak Pendaftaran
+                    </Button>
+                )}
+
+                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
+                    <Button 
+                        onClick={() => handleAdminAction('requires_correction')} 
+                        variant="outline" 
+                        className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                        disabled={isProcessingAction || ((memberData.status !== 'pending' && memberData.status !== 'verified' && memberData.status !== 'requires_correction' && memberData.status !== 'approved') || !adminComments.trim())}
+                        title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk minta perbaikan" : ""}
+                    >
+                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
+                        Minta Perbaikan Data
+                    </Button>
+                )}
+                 {isProcessingAction && <p className="text-sm text-muted-foreground">Memproses...</p>}
+            </div>
+            {memberData.status === 'approved' && (
+                 <Alert variant="default" className="mt-4 bg-green-50 border-green-300">
+                    <CheckSquare className="h-4 w-4 text-green-600" />
+                    <AlertTitle className="text-green-700">Anggota Telah Disetujui</AlertTitle>
+                    <AlertDescription className="text-green-600">
+                        Anda masih dapat mengubah statusnya menjadi "Ditolak" atau "Minta Perbaikan" jika diperlukan (misalnya jika ada temuan baru). Pastikan untuk mengisi kolom komentar.
+                    </AlertDescription>
+                </Alert>
+            )}
+             {memberData.status === 'rejected' && (
+                 <Alert variant="destructive" className="mt-4">
+                    <XSquare className="h-4 w-4" />
+                    <AlertTitle>Anggota Telah Ditolak</AlertTitle>
+                    <AlertDescription>
+                        Anda masih dapat mengubah statusnya menjadi "Disetujui" jika ada pertimbangan baru.
+                    </AlertDescription>
+                </Alert>
+            )}
         </CardContent>
       </Card>
-
     </div>
   );
 }
-
-    

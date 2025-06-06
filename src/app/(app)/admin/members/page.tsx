@@ -3,9 +3,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
@@ -16,19 +16,42 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Eye, Loader2, ShieldAlert, Users, ArrowLeft } from 'lucide-react';
+import { Eye, Loader2, ShieldAlert, Users, ArrowLeft, Filter } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 
 interface Member extends MemberRegistrationData {
   id: string; // Firestore document ID
 }
 
-const getStatusBadge = (status: MemberRegistrationData['status']): ReactNode => {
+type MemberStatusFilter = MemberRegistrationData['status'] | 'all';
+
+const statusDisplayMap: Record<MemberRegistrationData['status'], string> = {
+  pending: 'Menunggu',
+  approved: 'Disetujui',
+  rejected: 'Ditolak',
+  verified: 'Terverifikasi',
+  requires_correction: 'Perlu Perbaikan',
+};
+
+
+const getStatusBadge = (status?: MemberRegistrationData['status']): ReactNode => {
+  if (!status) return <Badge variant="outline">Tidak Diketahui</Badge>;
   switch (status) {
-    case 'approved': return <Badge variant="default" className="bg-green-500 text-white">Disetujui</Badge>;
-    case 'pending': return <Badge variant="secondary" className="bg-yellow-500 text-white">Menunggu</Badge>;
-    case 'rejected': return <Badge variant="destructive">Ditolak</Badge>;
-    case 'verified': return <Badge variant="default" className="bg-blue-500 text-white">Terverifikasi</Badge>;
-    default: return <Badge variant="outline">{status || 'Tidak Diketahui'}</Badge>;
+    case 'approved': return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600">{statusDisplayMap[status]}</Badge>;
+    case 'pending': return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600">{statusDisplayMap[status]}</Badge>;
+    case 'rejected': return <Badge variant="destructive" className="bg-red-500 text-white hover:bg-red-600">{statusDisplayMap[status]}</Badge>;
+    case 'verified': return <Badge variant="default" className="bg-blue-500 text-white hover:bg-blue-600">{statusDisplayMap[status]}</Badge>;
+    case 'requires_correction': return <Badge variant="default" className="bg-orange-500 text-white hover:bg-orange-600">{statusDisplayMap[status]}</Badge>;
+    default: return <Badge variant="outline">{status}</Badge>;
   }
 };
 
@@ -39,38 +62,52 @@ export default function AdminMembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
 
-  useEffect(() => {
-    if (!authLoading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-      router.push('/');
+
+  const fetchMembers = useCallback(async () => {
+    if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+       setPageLoading(false);
+       return;
     }
-  }, [user, authLoading, router]);
+    setPageLoading(true);
+    setError(null);
+    try {
+      const membersCollectionRef = collection(db, 'members');
+      const qConstraints: QueryConstraint[] = [orderBy('registrationTimestamp', 'desc')];
+      
+      if (statusFilter !== "all") {
+        qConstraints.push(where("status", "==", statusFilter));
+      }
+      
+      const q = query(membersCollectionRef, ...qConstraints);
+      const membersSnapshot = await getDocs(q);
+      const membersList = membersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as MemberRegistrationData),
+      })) as Member[];
+      setMembers(membersList);
+    } catch (err) {
+      console.error("Error fetching members:", err);
+      setError('Gagal memuat data anggota.');
+    } finally {
+      setPageLoading(false);
+    }
+  }, [user, statusFilter]);
+
 
   useEffect(() => {
-    if (user && (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-      const fetchMembers = async () => {
-        setPageLoading(true);
-        setError(null);
-        try {
-          const membersCollectionRef = collection(db, 'members');
-          // Order by registrationTimestamp if available, most recent first
-          const q = query(membersCollectionRef, orderBy('registrationTimestamp', 'desc'));
-          const membersSnapshot = await getDocs(q);
-          const membersList = membersSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...(doc.data() as MemberRegistrationData),
-          })) as Member[];
-          setMembers(membersList);
-        } catch (err) {
-          console.error("Error fetching members:", err);
-          setError('Gagal memuat data anggota.');
-        } finally {
-          setPageLoading(false);
+    if (!authLoading) {
+        if (user && (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+            fetchMembers();
+        } else if (user) {
+            router.push('/'); // Not an admin, redirect
+        } else {
+            router.push('/login'); // Not logged in
         }
-      };
-      fetchMembers();
     }
-  }, [user]); // Re-fetch if user changes (though mostly for initial load after role check)
+  }, [user, authLoading, router, fetchMembers]);
+
 
   if (authLoading || pageLoading) {
     return (
@@ -82,6 +119,7 @@ export default function AdminMembersPage() {
   }
 
   if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    // This should ideally be caught by useEffect redirect, but as a safeguard.
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
@@ -123,18 +161,39 @@ export default function AdminMembersPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>Daftar Semua Anggota</CardTitle>
-          <CardDescription>
-            Berikut adalah daftar semua calon anggota dan anggota yang terdaftar di sistem.
-            Total Anggota: {members.length}
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+                <CardTitle>Daftar Anggota & Calon Anggota</CardTitle>
+                <CardDescription>
+                    Berikut adalah daftar semua calon anggota dan anggota yang terdaftar. Total: {members.length}
+                </CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filter Status: {statusFilter === 'all' ? 'Semua' : statusDisplayMap[statusFilter as MemberRegistrationData['status']]}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                <DropdownMenuLabel>Filter Berdasarkan Status</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as MemberStatusFilter)}>
+                  <DropdownMenuRadioItem value="all">Semua Status</DropdownMenuRadioItem>
+                  {Object.keys(statusDisplayMap).map(sKey => (
+                    <DropdownMenuRadioItem key={sKey} value={sKey}>{statusDisplayMap[sKey as MemberRegistrationData['status']]}</DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </CardHeader>
         <CardContent>
           {members.length === 0 && !pageLoading ? (
             <Alert>
               <Users className="h-4 w-4" />
               <AlertTitle>Belum Ada Anggota</AlertTitle>
-              <AlertDescription>Saat ini belum ada anggota yang terdaftar.</AlertDescription>
+              <AlertDescription>Saat ini belum ada anggota yang terdaftar dengan filter yang dipilih.</AlertDescription>
             </Alert>
           ) : (
             <Table>
@@ -142,6 +201,7 @@ export default function AdminMembersPage() {
                 <TableRow>
                   <TableHead>Nama Lengkap</TableHead>
                   <TableHead className="hidden md:table-cell">Email</TableHead>
+                  <TableHead className="hidden lg:table-cell">No. Anggota</TableHead>
                   <TableHead className="hidden lg:table-cell">Tgl. Daftar</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
@@ -152,6 +212,7 @@ export default function AdminMembersPage() {
                   <TableRow key={member.id}>
                     <TableCell className="font-medium">{member.fullName || '-'}</TableCell>
                     <TableCell className="hidden md:table-cell">{member.email || '-'}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{member.memberIdNumber || '-'}</TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {member.registrationTimestamp 
                         ? new Date((member.registrationTimestamp as any).seconds * 1000).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric'}) 
@@ -161,7 +222,7 @@ export default function AdminMembersPage() {
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/admin/members/${member.id}`}>
-                          <Eye className="mr-2 h-4 w-4" /> Lihat
+                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
                         </Link>
                       </Button>
                     </TableCell>

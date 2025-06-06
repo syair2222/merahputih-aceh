@@ -15,11 +15,11 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion } from "lucide-react";
+import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3 } from "lucide-react";
 import ApplyFacilityForm from "@/components/member/apply-facility-form";
 
 // Re-define statusDisplay if not exported from types (or ensure it is exported)
-const statusDisplayMember: Record<FacilityApplicationData['status'], string> = {
+const statusDisplayMemberFacility: Record<FacilityApplicationData['status'], string> = {
   pending_review: 'Sedang Direview',
   pending_approval: 'Menunggu Persetujuan',
   approved: 'Disetujui',
@@ -29,7 +29,7 @@ const statusDisplayMember: Record<FacilityApplicationData['status'], string> = {
   requires_correction: 'Perlu Perbaikan Data'
 };
 
-const getStatusBadgeColor = (status: FacilityApplicationData['status']) => {
+const getStatusBadgeColorFacility = (status: FacilityApplicationData['status']) => {
   switch (status) {
     case 'approved': return 'bg-green-500';
     case 'rejected': return 'bg-red-500';
@@ -40,6 +40,14 @@ const getStatusBadgeColor = (status: FacilityApplicationData['status']) => {
     case 'cancelled_by_member': return 'bg-gray-500';
     default: return 'bg-gray-400';
   }
+};
+
+const statusDisplayMemberRegistration: Record<MemberRegistrationData['status'], string> = {
+  pending: 'Menunggu Verifikasi Admin',
+  approved: 'Aktif Terverifikasi',
+  rejected: 'Pendaftaran Ditolak',
+  verified: 'Terverifikasi (Menunggu Persetujuan Akhir)',
+  requires_correction: 'Data Perlu Diperbaiki',
 };
 
 export default function MemberDashboardPage() {
@@ -63,17 +71,17 @@ export default function MemberDashboardPage() {
       if (memberDocSnap.exists()) {
         const data = memberDocSnap.data() as MemberRegistrationData;
         let registrationDate: Date | string | undefined = data.registrationTimestamp;
-        if (data.registrationTimestamp?.seconds) {
-            registrationDate = new Date(data.registrationTimestamp.seconds * 1000);
+        if (data.registrationTimestamp && typeof (data.registrationTimestamp as any).seconds === 'number') {
+            registrationDate = new Date((data.registrationTimestamp as any).seconds * 1000);
         }
         setMemberData({ ...data, registrationTimestamp: registrationDate });
       } else {
         console.warn("Data anggota tidak ditemukan di Firestore untuk UID:", user.uid);
-        setMemberData(null); // Explicitly set to null if not found
+        setMemberData(null); 
       }
     } catch (err) {
       console.error("Error memuat data anggota:", err);
-      setMemberData(null); // Set to null on error to trigger error message
+      setMemberData(null); 
     } finally {
       setMemberLoading(false);
     }
@@ -93,15 +101,15 @@ export default function MemberDashboardPage() {
         limit(3)
       );
       const querySnapshot = await getDocs(q);
-      const apps = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<FacilityApplicationData, 'id'>),
-        applicationDate: (doc.data().applicationDate as Timestamp)?.toDate(),
+      const apps = querySnapshot.docs.map(docSnap => ({ // Renamed doc to docSnap
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<FacilityApplicationData, 'id'>),
+        applicationDate: (docSnap.data().applicationDate as Timestamp)?.toDate(),
       })) as FacilityApplicationData[];
       setRecentApplications(apps);
     } catch (error) {
       console.error("Error fetching recent applications:", error);
-      setRecentApplications([]); // Clear on error
+      setRecentApplications([]); 
     } finally {
       setApplicationsLoading(false);
     }
@@ -119,23 +127,23 @@ export default function MemberDashboardPage() {
       if (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas') {
         router.push('/admin/dashboard');
       } else {
-        router.push('/'); // Fallback for other roles
+        router.push('/'); 
       }
       return;
     }
-    // If user is 'member', proceed to fetch member specific data
+    
     fetchMemberData();
     if (user.status === 'approved') {
         fetchRecentApplications();
     } else {
-        setApplicationsLoading(false); // Not approved, so no applications to load or show
+        setApplicationsLoading(false); 
     }
 
   }, [user, authLoading, router, fetchMemberData, fetchRecentApplications]);
   
   const handleFormSubmitSuccess = () => {
     setIsApplyFacilityModalOpen(false);
-    fetchRecentApplications(); // Refresh recent applications list
+    fetchRecentApplications(); 
   };
 
 
@@ -149,7 +157,6 @@ export default function MemberDashboardPage() {
   }
 
   if (!user || user.role !== 'member') {
-    // This state is usually transitional while useEffect redirects.
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -178,8 +185,6 @@ export default function MemberDashboardPage() {
     </div>
   );
 
-
-  // The main return for a successfully loaded member dashboard
   return (
     <div className="space-y-8">
       {welcomeSection}
@@ -213,13 +218,15 @@ export default function MemberDashboardPage() {
               {(() => {
                 let statusIcon: React.ReactNode = null;
                 let statusColorClass = "";
-                let statusText = "";
                 let registrationDateFormatted = 'Tidak diketahui';
                 let adminCommentsMessage: React.ReactNode = null;
                 let pendingMessage: string | null = null;
                 let approvedMessage: string | null = null;
+                let requiresCorrectionMessage: string | null = null;
 
                 const memberStatus = memberData.status || 'Tidak Diketahui';
+                const memberStatusText = statusDisplayMemberRegistration[memberStatus] || `Status: ${memberStatus}`;
+
 
                  try {
                     if (memberData.registrationTimestamp) {
@@ -230,7 +237,7 @@ export default function MemberDashboardPage() {
                             dateValue = new Date(memberData.registrationTimestamp);
                         } else if (typeof memberData.registrationTimestamp === 'object' &&
                                    memberData.registrationTimestamp !== null &&
-                                   'seconds' in (memberData.registrationTimestamp as any) && // Type assertion
+                                   'seconds' in (memberData.registrationTimestamp as any) && 
                                    typeof (memberData.registrationTimestamp as any).seconds === 'number') {
                             dateValue = new Date((memberData.registrationTimestamp as any).seconds * 1000);
                         }
@@ -253,7 +260,6 @@ export default function MemberDashboardPage() {
                   case 'approved':
                     statusIcon = <CheckCircle className="h-5 w-5 text-green-500" />;
                     statusColorClass = "text-green-700 bg-green-100 border-green-300";
-                    statusText = "Aktif Terverifikasi";
                     approvedMessage = "Anda dapat mengakses semua fasilitas koperasi yang tersedia.";
                     if (memberData.businessFields && memberData.businessFields.length > 0) {
                        approvedMessage += ` Anda terdaftar pada bidang usaha: ${memberData.businessFields.join(', ')}.` +
@@ -263,13 +269,11 @@ export default function MemberDashboardPage() {
                   case 'pending':
                     statusIcon = <Clock className="h-5 w-5 text-yellow-500" />;
                     statusColorClass = "text-yellow-700 bg-yellow-100 border-yellow-300";
-                    statusText = "Menunggu Verifikasi Admin";
                     pendingMessage = "Pendaftaran Anda sedang ditinjau. Fitur pengajuan fasilitas akan aktif setelah disetujui.";
                     break;
                   case 'rejected':
                     statusIcon = <AlertCircle className="h-5 w-5 text-red-500" />;
                     statusColorClass = "text-red-700 bg-red-100 border-red-300";
-                    statusText = "Pendaftaran Ditolak";
                     if (memberData.adminComments) {
                       adminCommentsMessage = (
                         <div className="p-3 border-l-4 border-red-500 bg-red-50 rounded mt-2">
@@ -282,26 +286,41 @@ export default function MemberDashboardPage() {
                   case 'verified':
                     statusIcon = <CheckCircle className="h-5 w-5 text-blue-500" />;
                     statusColorClass = "text-blue-700 bg-blue-100 border-blue-300";
-                   statusText = "Terverifikasi (Menunggu Persetujuan Akhir)";
                     pendingMessage = "Akun Anda terverifikasi, menunggu persetujuan akhir dari admin untuk fasilitas.";
+                    break;
+                   case 'requires_correction':
+                    statusIcon = <Edit3 className="h-5 w-5 text-orange-500" />;
+                    statusColorClass = "text-orange-700 bg-orange-100 border-orange-300";
+                    requiresCorrectionMessage = "Admin meminta Anda untuk memperbaiki data pendaftaran.";
+                     if (memberData.adminComments) {
+                      adminCommentsMessage = (
+                        <div className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded mt-2">
+                          <p className="font-semibold text-orange-700">Komentar Admin:</p>
+                          <p className="text-sm text-orange-600">{memberData.adminComments}</p>
+                          <Button variant="link" size="sm" className="p-0 h-auto mt-1 text-orange-600" asChild>
+                            <Link href="/profile/edit">Perbaiki Data Sekarang</Link> {/* Placeholder link */}
+                          </Button>
+                        </div>
+                      );
+                    }
                     break;
                   default:
                     statusIcon = <AlertCircle className="h-5 w-5 text-gray-500" />;
                     statusColorClass = "text-gray-700 bg-gray-100 border-gray-300";
-                    statusText = `Status: ${memberStatus || 'Tidak Diketahui'}`;
                 }
 
                 return (
                   <>
                     <div className={`flex items-center p-3 rounded-md border ${statusColorClass}`}>
                       {statusIcon}
-                      <p className="ml-2 font-semibold">{statusText}</p>
+                      <p className="ml-2 font-semibold">{memberStatusText}</p>
                     </div>
                     <p><strong>Nomor Anggota:</strong> {memberData.memberIdNumber || 'Belum Ditetapkan'}</p>
                     <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
                     {adminCommentsMessage}
                     {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
                     {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
+                    {requiresCorrectionMessage && !adminCommentsMessage && <p className="text-sm text-orange-700">{requiresCorrectionMessage}</p>}
                   </>
                 );
               })()}
@@ -387,8 +406,8 @@ export default function MemberDashboardPage() {
                                           <TableCell className="font-medium">{app.facilityType}{app.facilityType === 'Lainnya' && app.specificProductName ? ` (${app.specificProductName})` : ''}</TableCell>
                                           <TableCell className="hidden sm:table-cell">{app.applicationDate instanceof Date ? app.applicationDate.toLocaleDateString('id-ID') : 'N/A'}</TableCell>
                                           <TableCell>
-                                              <Badge className={`text-white ${getStatusBadgeColor(app.status)}`}>
-                                                  {statusDisplayMember[app.status] || app.status}
+                                              <Badge className={`text-white ${getStatusBadgeColorFacility(app.status)}`}>
+                                                  {statusDisplayMemberFacility[app.status] || app.status}
                                               </Badge>
                                           </TableCell>
                                           <TableCell className="text-right">
@@ -444,5 +463,3 @@ export default function MemberDashboardPage() {
     </div>
   );
 }
-
-    
