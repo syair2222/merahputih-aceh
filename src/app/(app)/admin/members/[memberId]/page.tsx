@@ -18,7 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { FormLabel } from '@/components/ui/form';
+import { Label } from '@/components/ui/label'; // Changed from FormLabel
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3 } from 'lucide-react';
 
@@ -359,7 +359,7 @@ export default function MemberDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
             <div>
-              <FormLabel htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</FormLabel>
+              <Label htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</Label>
               <Textarea
                 id="adminComments"
                 value={adminComments}
@@ -386,7 +386,7 @@ export default function MemberDetailPage() {
                     <Button 
                         onClick={() => handleAdminAction('rejected')} 
                         variant="destructive" 
-                        disabled={isProcessingAction || ((memberData.status !== 'pending' && memberData.status !== 'verified' && memberData.status !== 'requires_correction' && memberData.status !== 'approved') || !adminComments.trim())}
+                        disabled={isProcessingAction || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
                         title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk menolak" : ""}
                     >
                         {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
@@ -399,7 +399,7 @@ export default function MemberDetailPage() {
                         onClick={() => handleAdminAction('requires_correction')} 
                         variant="outline" 
                         className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                        disabled={isProcessingAction || ((memberData.status !== 'pending' && memberData.status !== 'verified' && memberData.status !== 'requires_correction' && memberData.status !== 'approved') || !adminComments.trim())}
+                        disabled={isProcessingAction || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
                         title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk minta perbaikan" : ""}
                     >
                         {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
@@ -431,3 +431,4 @@ export default function MemberDetailPage() {
     </div>
   );
 }
+
