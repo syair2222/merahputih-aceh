@@ -122,16 +122,16 @@ export default function Home() {
           style={{ backgroundImage: `url(${cooperativeLogoUrl})` }}
           aria-hidden="true"
         ></div>
-        {/* Gradient Overlay for text readability */}
+        {/* Gradient Overlay for text readability - Opacity significantly reduced */}
         <div
-          className="absolute inset-0 bg-gradient-to-br from-primary/80 via-primary/70 to-accent/80"
+          className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/20 to-accent/30"
           aria-hidden="true"
         ></div>
 
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
-            src="https://placehold.co/100x100.png" // This is the smaller foreground logo
+            src="https://placehold.co/100x100.png" 
             alt="Logo Koperasi Merah Putih Sejahtera" 
             width={100} 
             height={100} 
