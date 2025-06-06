@@ -10,11 +10,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input'; // For file input placeholder
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { ArrowLeft, ShieldAlert, Loader2, LineChart, FileText, UploadCloud, Send } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { ArrowLeft, ShieldAlert, Loader2, LineChart, FileText, UploadCloud, Send, Printer } from 'lucide-react';
 import type { FacilityApplicationData } from '@/types';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -104,6 +104,11 @@ export default function MemberFacilityReportsPage() {
       setIsSubmitting(false);
     }
   };
+  
+  const handlePrint = () => {
+    window.print();
+  };
+
 
   if (authLoading || dataLoading) {
     return (
@@ -134,12 +139,17 @@ export default function MemberFacilityReportsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between no-print">
         <div className="flex items-center space-x-3">
           <LineChart className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-headline font-bold text-primary">Laporan Perkembangan Usaha</h1>
         </div>
-        <Button onClick={() => router.push('/member/dashboard')} variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor</Button>
+        <div>
+          <Button onClick={handlePrint} variant="outline" className="mr-2">
+            <Printer className="mr-2 h-4 w-4" /> Cetak Halaman
+          </Button>
+          <Button onClick={() => router.push('/member/dashboard')} variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor</Button>
+        </div>
       </div>
 
       <Card className="shadow-lg">
