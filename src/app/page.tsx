@@ -115,19 +115,17 @@ export default function Home() {
 
   return (
     <div className="space-y-8 sm:space-y-12">
-      <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 bg-no-repeat bg-cover bg-center"
-          style={{ backgroundImage: `url(${cooperativeLogoUrl})` }}
-          aria-hidden="true"
-        ></div>
-        {/* Gradient Overlay for text readability - Opacity significantly reduced */}
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/20 to-accent/30"
-          aria-hidden="true"
-        ></div>
-
+      <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden bg-primary/5">
+        {/* Additional Koperasi Indonesia Logo - Top Right */}
+        <Image
+            src={cooperativeLogoUrl}
+            alt="Logo Koperasi Indonesia Tambahan"
+            width={100}
+            height={100}
+            className="absolute top-4 right-4 z-20 hidden md:block rounded-md shadow-lg"
+            data-ai-hint="cooperative logo"
+        />
+        
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
@@ -138,14 +136,14 @@ export default function Home() {
             className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" 
             data-ai-hint="cooperative logo" 
           />
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary-foreground drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
-          <p className="text-base sm:text-lg text-primary-foreground/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
-          <p className="text-sm sm:text-base text-primary-foreground/90">{cooperativeInfo.established}</p>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
+          <p className="text-base sm:text-lg text-primary/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
+          <p className="text-sm sm:text-base text-primary/90">{cooperativeInfo.established}</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8">
-            <Button size="lg" asChild className="w-full sm:w-auto bg-primary-foreground text-primary hover:bg-gray-200 shadow-lg transform hover:scale-105 transition-transform">
+            <Button size="lg" asChild className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg transform hover:scale-105 transition-transform">
               <Link href="/register"><UserPlus className="mr-2" /> Daftar Anggota</Link>
             </Button>
-            <Button variant="outline" size="lg" asChild className="w-full sm:w-auto text-primary-foreground border-primary-foreground hover:bg-primary hover:text-primary-foreground shadow-lg transform hover:scale-105 transition-transform">
+            <Button variant="outline" size="lg" asChild className="w-full sm:w-auto text-primary border-primary hover:bg-primary/10 shadow-lg transform hover:scale-105 transition-transform">
               <Link href="/login"><LogIn className="mr-2" /> Masuk</Link>
             </Button>
           </div>
