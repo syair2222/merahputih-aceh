@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, ShieldAlert, Loader2, UserCircle, ThumbsUp, ThumbsDown, MessageSquare, Send, CheckCircle, XCircle, Info } from 'lucide-react';
 import type { FacilityApplicationData, RequestedRecommendation } from '@/types';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 
@@ -37,6 +37,7 @@ export default function MemberProvideRecommendationPage() {
   const [recommenderComment, setRecommenderComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userRecommendationStatus, setUserRecommendationStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+  const [initialCommentLoaded, setInitialCommentLoaded] = useState(false);
 
   const fetchApplicationAndVerify = useCallback(async () => {
     if (!applicationId || !user) {
@@ -46,6 +47,7 @@ export default function MemberProvideRecommendationPage() {
     }
     setPageLoading(true);
     setError(null);
+    setInitialCommentLoaded(false);
     try {
       const appDocRef = doc(db, 'facilityApplications', applicationId);
       const appDocSnap = await getDoc(appDocRef);
@@ -57,9 +59,15 @@ export default function MemberProvideRecommendationPage() {
         if (userRecRequest) {
           setApplication({ id: appDocSnap.id, ...appData });
           setUserRecommendationStatus(userRecRequest.status);
-          setRecommenderComment(userRecRequest.comment || '');
+          if (userRecRequest.comment) {
+            setRecommenderComment(userRecRequest.comment);
+          } else {
+            setRecommenderComment(''); // Clear if no comment
+          }
+          setInitialCommentLoaded(true);
         } else {
           setError('Anda tidak diminta untuk memberikan rekomendasi untuk pengajuan ini, atau permintaan sudah tidak valid.');
+          setApplication(null); // Clear application data if user is not a recommender
         }
       } else {
         setError('Data pengajuan fasilitas tidak ditemukan.');
@@ -77,9 +85,10 @@ export default function MemberProvideRecommendationPage() {
       if (!user) {
         router.push('/login');
       } else if (user.role !== 'member') {
-        router.push('/');
-      } else {
+        // Allow access if user is a member, regardless of approval status for *giving* recommendations
         fetchApplicationAndVerify();
+      } else {
+         fetchApplicationAndVerify();
       }
     }
   }, [user, authLoading, router, fetchApplicationAndVerify]);
@@ -105,7 +114,7 @@ export default function MemberProvideRecommendationPage() {
             ...rec,
             status: decision,
             comment: recommenderComment.trim(),
-            decisionDate: serverTimestamp(),
+            decisionDate: serverTimestamp(), // Set Firestore server timestamp
           };
         }
         return rec;
@@ -117,14 +126,15 @@ export default function MemberProvideRecommendationPage() {
       };
 
       if (decision === 'approved') {
+        // Increment recommendationCount only if it's an approval
         updatePayload.recommendationCount = increment(1);
       }
       
       await updateDoc(appDocRef, updatePayload);
       
       toast({ title: "Rekomendasi Terkirim", description: `Anda telah ${decision === 'approved' ? 'menyetujui' : 'menolak'} rekomendasi ini.` });
-      setUserRecommendationStatus(decision); // Update local status
-      // Optionally, refresh data from server: fetchApplicationAndVerify();
+      setUserRecommendationStatus(decision); // Update local status to reflect change
+      // fetchApplicationAndVerify(); // Could re-fetch to get server timestamp for decisionDate, but local update is faster for UI
     } catch (err) {
       console.error("Error submitting recommendation:", err);
       toast({ title: "Gagal Mengirim Rekomendasi", description: "Terjadi kesalahan.", variant: "destructive" });
@@ -133,13 +143,26 @@ export default function MemberProvideRecommendationPage() {
     }
   };
 
-  if (authLoading || pageLoading) {
+  if (authLoading || pageLoading || !initialCommentLoaded && userRecommendationStatus === 'pending') {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="ml-4 text-lg text-muted-foreground">Memuat detail permintaan rekomendasi...</p>
       </div>
     );
+  }
+  
+  if (!user || user.role !== 'member') {
+     return (
+        <div className="text-center p-10">
+            <Alert variant="destructive">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>Akses Ditolak</AlertTitle>
+                <AlertDescription>Anda harus menjadi anggota untuk melihat halaman ini.</AlertDescription>
+            </Alert>
+            <Button onClick={() => router.push('/')} className="mt-4">Kembali ke Beranda</Button>
+        </div>
+     );
   }
 
   if (error) {
@@ -152,17 +175,30 @@ export default function MemberProvideRecommendationPage() {
   }
 
   if (!application) {
+    // This case should be covered by the error state if user is not a valid recommender
     return (
       <div className="text-center p-10">
-        <Alert><AlertTitle>Informasi</AlertTitle><AlertDescription>Tidak ada data pengajuan untuk ditampilkan.</AlertDescription></Alert>
+        <Alert><AlertTitle>Informasi</AlertTitle><AlertDescription>Tidak ada data pengajuan untuk ditampilkan atau Anda tidak memiliki akses.</AlertDescription></Alert>
         <Button onClick={() => router.push('/member/dashboard')} variant="outline" className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor</Button>
       </div>
     );
   }
 
-  const appDateFormatted = application.applicationDate instanceof Timestamp 
-    ? application.applicationDate.toDate().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) 
-    : 'Tidak diketahui';
+  const appDateRaw = application.applicationDate;
+  let appDateFormatted = 'Tidak diketahui';
+  if (appDateRaw) {
+    if (appDateRaw instanceof Timestamp) {
+        appDateFormatted = appDateRaw.toDate().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+    } else if (appDateRaw instanceof Date) {
+         appDateFormatted = appDateRaw.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+    } else if (typeof appDateRaw === 'string') {
+        try {
+            appDateFormatted = new Date(appDateRaw).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+        } catch (e) { /* Keep 'Tidak diketahui' */ }
+    }
+  }
+  
+  const currentRecommenderEntry = application.requestedRecommendations?.find(r => r.memberId === user.uid);
 
   return (
     <div className="space-y-8">
@@ -229,8 +265,8 @@ export default function MemberProvideRecommendationPage() {
               <AlertTitle className="text-green-700 font-semibold">Anda Telah Merekomendasikan</AlertTitle>
               <AlertDescription className="text-green-600">
                 Terima kasih atas partisipasi Anda. Keputusan Anda: Disetujui.
-                {application.requestedRecommendations?.find(r => r.memberId === user?.uid)?.comment && (
-                  <p className="mt-1 text-xs">Komentar Anda: {application.requestedRecommendations?.find(r => r.memberId === user?.uid)?.comment}</p>
+                {currentRecommenderEntry?.comment && (
+                  <p className="mt-1 text-xs">Komentar Anda: {currentRecommenderEntry.comment}</p>
                 )}
               </AlertDescription>
             </Alert>
@@ -240,16 +276,17 @@ export default function MemberProvideRecommendationPage() {
               <AlertTitle className="font-semibold">Anda Telah Menolak Rekomendasi</AlertTitle>
               <AlertDescription>
                 Keputusan Anda: Ditolak.
-                {application.requestedRecommendations?.find(r => r.memberId === user?.uid)?.comment && (
-                  <p className="mt-1 text-xs">Komentar Anda: {application.requestedRecommendations?.find(r => r.memberId === user?.uid)?.comment}</p>
+                {currentRecommenderEntry?.comment && (
+                  <p className="mt-1 text-xs">Komentar Anda: {currentRecommenderEntry.comment}</p>
                 )}
               </AlertDescription>
             </Alert>
           ) : (
+             // Should ideally not be reached if fetchApplicationAndVerify handles errors correctly
             <Alert variant="destructive">
                 <ShieldAlert className="h-4 w-4" />
                 <AlertTitle>Status Tidak Valid</AlertTitle>
-                <AlertDescription>Tidak dapat memproses permintaan rekomendasi ini.</AlertDescription>
+                <AlertDescription>Tidak dapat memproses permintaan rekomendasi ini. Mungkin Anda sudah memberikan keputusan atau ada kesalahan data.</AlertDescription>
             </Alert>
           )}
         </CardContent>
@@ -257,3 +294,4 @@ export default function MemberProvideRecommendationPage() {
     </div>
   );
 }
+
