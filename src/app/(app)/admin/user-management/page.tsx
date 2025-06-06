@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save } from 'lucide-react'; // Changed UsersCog to UserCog
+import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
