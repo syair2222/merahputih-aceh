@@ -7,13 +7,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Image 
-            src="https://placehold.co/100x100.png" // Replace with actual logo URL
-            alt="Koperasi Merah Putih Sejahtera Logo" 
-            width={80} 
-            height={80} 
+          <Image
+            src="/images/logo_koperasi_utama.png" // Changed from placeholder
+            alt="Koperasi Merah Putih Sejahtera Logo"
+            width={80}
+            height={80}
             className="mx-auto rounded-full shadow-md"
-            data-ai-hint="cooperative logo" 
+            data-ai-hint="cooperative logo"
           />
           <h1 className="text-3xl font-headline mt-4 font-bold text-primary">
             Koperasi Merah Putih Sejahtera
