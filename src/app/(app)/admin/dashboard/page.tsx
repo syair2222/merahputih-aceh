@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert } from "lucide-react";
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit } from "lucide-react"; // Added Edit icon
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -21,9 +21,9 @@ const dashboardStats = [
 
 const quickActions = [
   { label: "Verifikasi Anggota Baru", href: "/admin/applications", icon: FileText },
-  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: MessageSquare }, // Placeholder for new announcement
+  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: Edit }, // Changed icon to Edit for creation
   { label: "Lihat Laporan Keuangan", href: "/admin/reports", icon: BarChart },
-  { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, // Should link to /settings or a specific /admin/settings page
+  { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, 
 ];
 
 export default function AdminDashboardPage() {
@@ -32,19 +32,18 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (authLoading) {
-      return; // Tunggu otentikasi selesai
+      return; 
     }
 
     if (!user) {
-      router.push('/login'); // Arahkan jika tidak login
+      router.push('/login'); 
       return;
     }
 
     if (!(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-      router.push('/'); // Arahkan jika bukan admin
+      router.push('/'); 
       return;
     }
-    // Jika semua pemeriksaan lolos, halaman dapat dirender.
   }, [user, authLoading, router]);
 
 
@@ -57,14 +56,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Pada titik ini, authLoading false.
-  // useEffect menangani redirect. Jika kita sampai di sini dan kondisi di useEffect
-  // untuk redirect terpenuhi, redirect akan terjadi.
-  // Kita hanya merender dasbor jika pengguna ADALAH admin.
-
   if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-    // State ini bersifat transisi sementara useEffect melakukan redirect.
-    // Atau jika useEffect gagal, ini adalah fallback.
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -73,7 +65,6 @@ export default function AdminDashboardPage() {
      );
   }
   
-  // Pengguna terotentikasi dan adalah admin. Render dasbor.
   const adminName = user.displayName || user.email;
 
 
@@ -128,7 +119,7 @@ export default function AdminDashboardPage() {
           <CardTitle className="text-xl font-headline text-accent">Aktivitas Terbaru & Tugas Tertunda</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Belum ada data aktivitas terbaru atau tugas tertunda.</p>
+          <p className="text-muted-foreground">Belum ada data aktivitas terbaru atau tugas tertunda. Fitur ini sedang dalam pengembangan.</p>
           {/* Example item:
           <div className="flex items-center justify-between py-2 border-b last:border-b-0">
             <div>
@@ -141,7 +132,6 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
       
-      {/* Data Export Section (Placeholder) */}
        {(user.role === 'admin_utama' || user.role === 'dinas') && ( 
         <Card className="shadow-lg">
           <CardHeader>

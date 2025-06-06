@@ -3,11 +3,12 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, ShieldAlert, Loader2, Megaphone } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, Megaphone, Edit, List } from 'lucide-react'; // Added Edit, List
 
 export default function AdminAnnouncementsPage() {
   const { user, loading } = useAuth();
@@ -41,6 +42,12 @@ export default function AdminAnnouncementsPage() {
     );
   }
 
+  // Placeholder for announcements data
+  const announcements = [
+    // { id: '1', title: 'Rapat Anggota Tahunan 2025', date: '2024-12-01', status: 'Published' },
+    // { id: '2', title: 'Program Pelatihan UMKM', date: '2024-11-15', status: 'Draft' },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -48,21 +55,35 @@ export default function AdminAnnouncementsPage() {
           <Megaphone className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-headline font-bold text-primary">Manajemen Pengumuman</h1>
         </div>
-        <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor Admin
-        </Button>
+        <div className='space-x-2'>
+            <Button onClick={() => router.push('/admin/announcements/new')}>
+            <Edit className="mr-2 h-4 w-4" /> Buat Pengumuman Baru
+            </Button>
+            <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor Admin
+            </Button>
+        </div>
       </div>
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-accent">Segera Hadir</CardTitle>
-          <CardDescription>Fitur untuk membuat dan mengelola pengumuman koperasi sedang dalam tahap pengembangan.</CardDescription>
+          <CardTitle className="text-xl font-headline text-accent flex items-center">
+            <List className="mr-2 h-5 w-5"/>Daftar Pengumuman
+            </CardTitle>
+          <CardDescription>Kelola pengumuman yang akan ditampilkan kepada anggota koperasi.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Di sini Anda akan dapat membuat pengumuman baru, mengedit yang sudah ada, dan melihat interaksi anggota. Terima kasih atas kesabaran Anda.</p>
-          <div className="mt-6 flex justify-center">
-            <Megaphone className="h-32 w-32 text-muted opacity-20" />
-          </div>
+          {announcements.length === 0 ? (
+            <div className="text-center py-10">
+              <Megaphone className="h-24 w-24 text-muted opacity-30 mx-auto" />
+              <p className="mt-4 text-lg text-muted-foreground">Belum ada pengumuman.</p>
+              <p className="text-sm text-muted-foreground">Anda dapat membuat pengumuman baru menggunakan tombol di atas.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Fungsionalitas penuh untuk daftar, edit, dan hapus pengumuman akan segera hadir.</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Fitur untuk menampilkan daftar pengumuman akan segera hadir.</p>
+            // Placeholder for table or list of announcements
+          )}
         </CardContent>
       </Card>
     </div>
