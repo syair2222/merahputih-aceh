@@ -66,11 +66,13 @@ export default function AppNavbar() {
   return (
     <nav className="bg-primary shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <Link href="/" className="text-primary-foreground hover:text-accent transition-colors">
-          <div className="flex flex-col leading-tight">
-            <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
-            <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
-          </div>
+        <Link href="/" legacyBehavior passHref>
+          <a className="text-primary-foreground hover:text-accent transition-colors">
+            <div className="flex flex-col leading-tight">
+              <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
+              <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
+            </div>
+          </a>
         </Link>
         
         {/* Desktop Menu */}
