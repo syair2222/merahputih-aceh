@@ -116,25 +116,25 @@ export default function Home() {
   return (
     <div className="space-y-8 sm:space-y-12">
       <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden bg-primary/5">
-        {/* Additional Koperasi Indonesia Logo - Top Right */}
+        {/* Koperasi Indonesia Logo - Top Right */}
         <Image
             src={cooperativeLogoUrl}
             alt="Logo Koperasi Indonesia Tambahan"
             width={100}
             height={100}
             className="absolute top-4 right-4 z-20 hidden md:block rounded-md shadow-lg"
-            data-ai-hint="cooperative logo"
+            data-ai-hint="indonesia cooperative"
         />
         
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
-            src="https://placehold.co/100x100.png" 
+            src="https://res.cloudinary.com/dj0g9plk8/image/upload/v1716276900/koperasi_indonesia_logo.png"
             alt="Logo Koperasi Merah Putih Sejahtera" 
             width={100} 
             height={100} 
             className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" 
-            data-ai-hint="cooperative logo" 
+            data-ai-hint="merah putih cooperative"
           />
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
           <p className="text-base sm:text-lg text-primary/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
