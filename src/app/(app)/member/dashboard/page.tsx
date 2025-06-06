@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3, Star, Handshake, BellRing } from "lucide-react";
 import ApplyFacilityForm from "@/components/member/apply-facility-form";
+import MemberBadges from "@/components/member/member-badges"; // Import MemberBadges
 
 // Re-define statusDisplay if not exported from types (or ensure it is exported)
 const statusDisplayMemberFacility: Record<FacilityApplicationData['status'], string> = {
@@ -225,8 +226,11 @@ export default function MemberDashboardPage() {
   const memberName = user.displayName || user.email || "Anggota Koperasi";
 
   const welcomeSection = (
-    <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+    <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+          {memberData && <MemberBadges memberData={memberData} className="mt-1" />}
+        </div>
         <Alert variant="default" className="shadow max-w-md">
           <UserCircle className="h-5 w-5 text-primary" />
           <AlertTitle className="font-semibold text-lg text-accent">Selamat Datang, {memberName}!</AlertTitle>

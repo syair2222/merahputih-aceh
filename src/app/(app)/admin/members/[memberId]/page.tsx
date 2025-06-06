@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon, Handshake } from 'lucide-react';
+import MemberBadges from '@/components/member/member-badges'; // Import MemberBadges
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={cn("mb-3", fullWidth ? "col-span-2" : "")}>
@@ -306,7 +307,10 @@ export default function MemberDetailPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-headline font-bold text-primary">Detail Anggota: {memberData.fullName}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-headline font-bold text-primary">Detail Anggota: {memberData.fullName}</h1>
+          {memberData && <MemberBadges memberData={memberData} />}
+        </div>
         <div>
           <Button onClick={handlePrint} variant="outline" className="mr-2 no-print">
             <Printer className="mr-2 h-4 w-4" /> Cetak Profil
