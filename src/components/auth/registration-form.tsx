@@ -23,9 +23,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import React, { useState, useId } from 'react';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth, db, storage } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase'; // Removed storage import
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Removed Firebase Storage imports: ref, uploadBytes, getDownloadURL
 import type { MemberRegistrationData, MembershipType, BusinessField } from '@/types';
 import { BusinessFieldsOptions } from '@/types';
 import { CalendarIcon, Eye, EyeOff, Loader2, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -41,6 +41,10 @@ import type { FirebaseError } from 'firebase/app';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
+
+// Cloudinary constants
+const CLOUDINARY_CLOUD_NAME = 'dj0g9plk8'; // Your Cloudinary cloud name
+const CLOUDINARY_UPLOAD_PRESET = 'koperasi_unsigned_preset'; // The UNASSIGNED upload preset you created
 
 // Schema for validating a single File object (client-side before upload attempt)
 const singleImageFileSchema = z.instanceof(File)
@@ -58,7 +62,7 @@ const singleImageOrPdfFileSchema = z.instanceof(File)
   ).optional();
 
 // Schema for FileList (used by react-hook-form for the input field itself)
-const fileListSchema = (isRequired: boolean, acceptedTypes: string[] = ACCEPTED_IMAGE_TYPES, customError?: string) => 
+const fileListSchema = (isRequired: boolean, acceptedTypes: string[] = ACCEPTED_IMAGE_TYPES, customError?: string) =>
   z.any()
     .refine((fileList) => !isRequired || (fileList && fileList.length > 0), isRequired ? "File dibutuhkan." : true)
     .refine((fileList) => !isRequired || !fileList || fileList.length === 0 || (fileList[0]?.size <= MAX_FILE_SIZE), `Ukuran file maksimal 5MB.`)
@@ -92,15 +96,15 @@ const registrationSchema = z.object({
   // Step 2: Status Kependudukan
   isPermanentResident: z.boolean().default(false),
   residentDesaName: z.string().optional(),
-  
-  ktpScan: fileListSchema(true), 
-  ktpScanUrl: z.string().url().optional(), 
-  
+
+  ktpScan: fileListSchema(true),
+  ktpScanUrl: z.string().url("URL KTP tidak valid atau upload gagal.").min(1, "Scan KTP wajib diupload."),
+
   kkScan: fileListSchema(false),
   kkScanUrl: z.string().url().optional(),
 
   selfieKtp: fileListSchema(true),
-  selfieKtpUrl: z.string().url().optional(),
+  selfieKtpUrl: z.string().url("URL Selfie KTP tidak valid atau upload gagal.").min(1, "Selfie KTP wajib diupload."),
 
   // Step 3: Pilihan Keanggotaan
   membershipType: z.enum(['Anggota Konsumen', 'Anggota Produsen', 'Anggota Simpan Pinjam', 'Anggota Jasa Lainnya'], { required_error: "Jenis keanggotaan wajib dipilih." }),
@@ -112,11 +116,11 @@ const registrationSchema = z.object({
 
   // Step 5: Lampiran Dokumen
   pasFoto: fileListSchema(true),
-  pasFotoUrl: z.string().url().optional(),
+  pasFotoUrl: z.string().url("URL Pas Foto tidak valid atau upload gagal.").min(1, "Pas Foto wajib diupload."),
 
   domicileProof: fileListSchema(false, [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES], "Format Bukti Domisili hanya JPG, PNG, WEBP, atau PDF."),
   domicileProofUrl: z.string().url().optional(),
-  
+
   businessDocument: fileListSchema(false, [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES], "Format Dokumen Usaha hanya JPG, PNG, WEBP, atau PDF."),
   businessDocumentUrl: z.string().url().optional(),
 
@@ -130,21 +134,13 @@ const registrationSchema = z.object({
 })
 .refine(data => {
   if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
-    return data.businessDocument && data.businessDocument.length > 0 && data.businessDocumentUrl;
+    // Check if the file list was provided and if the URL is now set
+    return (data.businessDocument && data.businessDocument.length > 0) ? !!data.businessDocumentUrl : true;
   }
   return true;
 }, {
-  message: "Dokumen usaha wajib diupload dan berhasil diunggah jika mendaftar sebagai produsen/UMKM.",
-  path: ["businessDocumentUrl"], 
-})
-.refine(data => data.ktpScan && data.ktpScan.length > 0 ? !!data.ktpScanUrl : true, {
-    message: "Scan KTP harus berhasil diupload.", path: ["ktpScanUrl"]
-})
-.refine(data => data.selfieKtp && data.selfieKtp.length > 0 ? !!data.selfieKtpUrl : true, {
-    message: "Selfie KTP harus berhasil diupload.", path: ["selfieKtpUrl"]
-})
-.refine(data => data.pasFoto && data.pasFoto.length > 0 ? !!data.pasFotoUrl : true, {
-    message: "Pas foto harus berhasil diupload.", path: ["pasFotoUrl"]
+  message: "Dokumen usaha wajib diupload jika mendaftar sebagai produsen/UMKM dan URL harus ada.",
+  path: ["businessDocumentUrl"],
 });
 
 
@@ -169,7 +165,8 @@ export default function RegistrationForm() {
   const [currentStep, setCurrentStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const registrationSessionId = useId().replace(/:/g, ""); 
+  // registrationSessionId might not be needed for Cloudinary unless used for folder structuring in upload preset or public_id
+  const registrationSessionId = useId().replace(/:/g, "");
   const [fileLoadingStates, setFileLoadingStates] = useState<Record<FileInputFieldName, boolean>>({
     ktpScan: false, kkScan: false, selfieKtp: false, pasFoto: false, domicileProof: false, businessDocument: false,
   });
@@ -177,7 +174,7 @@ export default function RegistrationForm() {
 
   const form = useForm<RegistrationFormValues>({
     resolver: zodResolver(registrationSchema),
-    mode: "onChange", 
+    mode: "onChange",
     defaultValues: {
       username: '', email: '', password: '', confirmPassword: '',
       fullName: '', nik: '', kk: '', birthPlace: '', gender: undefined, birthDate: undefined,
@@ -196,13 +193,6 @@ export default function RegistrationForm() {
     },
   });
 
-  const uploadFileUtil = async (file: File, path: string): Promise<string | undefined> => {
-    if (!file) return undefined;
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
-    return getDownloadURL(storageRef);
-  };
-  
   const handleIndividualFileUpload = async (
     file: File | undefined,
     fileInputFieldName: FileInputFieldName,
@@ -228,33 +218,47 @@ export default function RegistrationForm() {
     }
 
     setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: true }));
-    form.setValue(fileUrlFieldNameKey, undefined); 
+    form.setValue(fileUrlFieldNameKey, undefined); // Clear previous URL if re-uploading
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    // Optional: Add folder or tags
+    // formData.append('folder', `koperasi_uploads/pending_registrations/${registrationSessionId}`);
 
     try {
-      const path = `pending_registrations/${registrationSessionId}/${fileInputFieldName}.${file.name.split('.').pop()}`;
-      const downloadURL = await uploadFileUtil(file, path);
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
-      if (downloadURL) {
-        form.setValue(fileUrlFieldNameKey, downloadURL);
-        form.clearErrors(fileInputFieldName); 
-        toast({ title: "Upload Berhasil", description: `${file.name} telah diupload.` });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Cloudinary upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const cloudinaryUrl = data.secure_url;
+
+      if (cloudinaryUrl) {
+        form.setValue(fileUrlFieldNameKey, cloudinaryUrl);
+        form.clearErrors(fileInputFieldName);
+        form.clearErrors(fileUrlFieldNameKey); // Clear any Zod error on the URL field itself
+        toast({ title: "Upload Berhasil", description: `${file.name} telah diupload ke Cloudinary.` });
       } else {
-        throw new Error('Upload gagal, URL tidak diterima.');
+        throw new Error('Upload ke Cloudinary berhasil, tetapi URL tidak diterima.');
       }
     } catch (err) {
-      console.error(`Error uploading ${fileInputFieldName}:`, err);
-      let description = `Gagal mengupload ${file.name}. Coba lagi.`;
-      
-      // Check if err is a FirebaseError and has a code property
-      const firebaseError = err as FirebaseError;
-      if (firebaseError && firebaseError.code) {
-          description += ` (Error: ${firebaseError.code})`;
-      } else if (err instanceof Error) {
+      console.error(`Error uploading ${fileInputFieldName} to Cloudinary:`, err);
+      let description = `Gagal mengupload ${file.name} ke Cloudinary.`;
+       if (err instanceof Error) {
           description += ` (Pesan: ${err.message})`;
       }
-      
       toast({ title: "Upload Gagal", description, variant: "destructive" });
-      form.setError(fileInputFieldName, { type: "manual", message: `Upload ${file.name} gagal.` });
+      form.setError(fileUrlFieldNameKey, { type: "manual", message: `Upload ${file.name} ke Cloudinary gagal.` });
       form.setValue(fileUrlFieldNameKey, undefined);
     } finally {
       setFileLoadingStates(prev => ({ ...prev, [fileInputFieldName]: false }));
@@ -264,43 +268,26 @@ export default function RegistrationForm() {
 
   async function onSubmit(data: RegistrationFormValues) {
     setIsLoading(true);
+    // File uploads are now handled individually, so we just check if URLs are present for required files
+    // The Zod schema now validates the presence of `...Url` fields for required uploads.
+
     try {
-      const requiredFileFields: FileInputFieldName[] = ['ktpScan', 'selfieKtp', 'pasFoto'];
-      if (data.membershipType === 'Anggota Produsen' && data.businessFields.includes('Kerajinan / UMKM')) {
-        requiredFileFields.push('businessDocument');
-      }
-
-      for (const fieldName of requiredFileFields) {
-        const fileList = data[fieldName] as FileList | undefined;
-        const fileUrlFieldNameKey = `${fieldName}Url` as keyof RegistrationFormValues;
-        const fileUrl = data[fileUrlFieldNameKey] as string | undefined;
-        if (fileList && fileList.length > 0 && !fileUrl) {
-          form.setError(fieldName, { message: `Upload untuk ${fieldName} belum selesai atau gagal. Mohon periksa kembali.` });
-          toast({ title: "Pendaftaran Gagal", description: `Upload untuk ${fieldName} belum selesai atau gagal.`, variant: "destructive" });
-          const stepIndexWithError = steps.findIndex(step => step.fields.includes(fieldName));
-          if (stepIndexWithError !== -1) setCurrentStep(stepIndexWithError);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-
       const usernameQuery = await getDoc(doc(db, "usernames", data.username.toLowerCase()));
       if (usernameQuery.exists()) {
         form.setError("username", { message: "Username sudah digunakan." });
         toast({ title: "Pendaftaran Gagal", description: "Username sudah digunakan.", variant: "destructive" });
         setIsLoading(false);
-        setCurrentStep(0); 
+        setCurrentStep(0);
         return;
       }
-      
+
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
       await updateProfile(user, { displayName: data.fullName });
 
       const memberData: MemberRegistrationData = {
         userId: user.uid,
-        username: data.username.toLowerCase(), 
+        username: data.username.toLowerCase(),
         email: data.email,
         fullName: data.fullName,
         nik: data.nik,
@@ -316,45 +303,45 @@ export default function RegistrationForm() {
         currentJob: data.currentJob,
         isPermanentResident: data.isPermanentResident,
         residentDesaName: data.isPermanentResident ? data.residentDesaName : undefined,
-        
-        ktpScanUrl: data.ktpScanUrl,
+
+        ktpScanUrl: data.ktpScanUrl!, // Zod ensures this is present
         kkScanUrl: data.kkScanUrl,
-        selfieKtpUrl: data.selfieKtpUrl,
-        
+        selfieKtpUrl: data.selfieKtpUrl!, // Zod ensures this is present
+
         membershipType: data.membershipType,
         businessFields: data.businessFields,
         otherBusinessField: data.businessFields.includes('Lainnya') ? data.otherBusinessField : undefined,
         agreedToCommitment: data.agreedToCommitment,
 
-        pasFotoUrl: data.pasFotoUrl,
+        pasFotoUrl: data.pasFotoUrl!, // Zod ensures this is present
         domicileProofUrl: data.domicileProofUrl,
         businessDocumentUrl: data.businessDocumentUrl,
 
         agreedToTerms: data.agreedToTerms,
         agreedToBecomeMember: data.agreedToBecomeMember,
-        registrationTimestamp: serverTimestamp() as unknown as string, 
+        registrationTimestamp: serverTimestamp() as unknown as string,
         status: 'pending',
-        otpVerified: false, 
+        otpVerified: false,
       };
-      
+
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
         displayName: data.fullName,
-        role: 'prospective_member', 
+        role: 'prospective_member',
         photoURL: data.pasFotoUrl || null,
         createdAt: serverTimestamp(),
       });
 
       await setDoc(doc(db, 'members', user.uid), memberData);
-      
+
       await setDoc(doc(db, "usernames", data.username.toLowerCase()), { uid: user.uid });
 
       toast({
         title: 'Pendaftaran Berhasil!',
         description: 'Data Anda telah dikirim. Silakan tunggu verifikasi dari admin.',
       });
-      router.push('/login?registrationSuccess=true'); 
+      router.push('/login?registrationSuccess=true');
     } catch (error: any) {
       console.error('Registration error:', error);
       let errorMessage = 'Terjadi kesalahan saat pendaftaran.';
@@ -381,37 +368,33 @@ export default function RegistrationForm() {
     for (const fieldName of fieldsToValidate) {
         if (fileLoadingStates[fieldName as FileInputFieldName]) {
             allUploadsDoneOrNotStarted = false;
+            toast({
+                title: "Upload Sedang Berlangsung",
+                description: `Mohon tunggu hingga upload untuk ${fieldName} selesai.`,
+                variant: "destructive",
+              });
             break;
         }
-        const fileList = form.getValues(fieldName as FileInputFieldName) as FileList | undefined;
+        // For required file fields, check if the URL is set (meaning upload was successful)
         const fileUrlFieldNameKey = `${fieldName}Url` as keyof RegistrationFormValues;
-        const fileUrl = form.getValues(fileUrlFieldNameKey) as string | undefined;
-        
-        const isRequiredFileUpload = ['ktpScan', 'selfieKtp', 'pasFoto'].includes(fieldName);
-        const isConditionallyRequiredBusinessDoc = fieldName === 'businessDocument' && form.getValues('membershipType') === 'Anggota Produsen' && form.getValues('businessFields').includes('Kerajinan / UMKM');
-
-        if ((isRequiredFileUpload || isConditionallyRequiredBusinessDoc) && fileList && fileList.length > 0 && !fileUrl) {
-            allUploadsDoneOrNotStarted = false;
-            form.setError(fieldName as keyof RegistrationFormValues, {message: "Upload untuk file ini belum selesai atau gagal."});
-            break;
+        if (steps[currentStep].fields.includes(fileUrlFieldNameKey)) { // check if it's a file URL field itself
+             const isRequired = registrationSchema.shape[fileUrlFieldNameKey as keyof typeof registrationSchema.shape]?._def.typeName !== 'ZodOptional';
+             if(isRequired && !form.getValues(fileUrlFieldNameKey)){
+                allUploadsDoneOrNotStarted = false;
+                form.setError(fileUrlFieldNameKey, {message: "Upload untuk file ini wajib dan belum selesai/berhasil."});
+                break;
+             }
         }
     }
-
 
     if (isValid && allUploadsDoneOrNotStarted) {
       setCurrentStep((prev) => prev + 1);
     } else if (!isValid) {
        toast({
         title: "Form Tidak Lengkap",
-        description: "Mohon periksa kembali isian pada bagian ini.",
+        description: "Mohon periksa kembali isian pada bagian ini. Pastikan semua field yang wajib telah diisi dan file yang wajib telah diupload.",
         variant: "destructive",
       });
-    } else if (!allUploadsDoneOrNotStarted) {
-        toast({
-            title: "Upload Sedang Berlangsung",
-            description: "Mohon tunggu hingga semua file selesai diupload atau perbaiki error upload pada langkah ini.",
-            variant: "destructive",
-          });
     }
   };
 
@@ -428,15 +411,15 @@ export default function RegistrationForm() {
   ) => {
     const isLoadingFile = fileLoadingStates[name];
     const associatedUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
-    const uploadedUrl = form.watch(associatedUrlFieldName);
-    
+    const uploadedUrl = form.watch(associatedUrlFieldName); // Watch the URL field
+
     return (
       <FormField
         control={form.control}
-        name={name}
+        name={name} // This is for the FileList object from the input
         render={({ field: { onChange: onFileListChange, value: fileListValue, ref: fieldRef } }) => {
+          // This is the key for the URL field in the form state and Zod schema
           const currentRenderScopeUrlFieldName = `${name}Url` as keyof RegistrationFormValues;
-          
           return (
             <FormItem>
               <FormLabel>{label}</FormLabel>
@@ -445,7 +428,7 @@ export default function RegistrationForm() {
                   type="file"
                   accept={isPdfAllowed ? "image/*,.pdf" : "image/*"}
                   onChange={(e) => {
-                    onFileListChange(e.target.files); 
+                    onFileListChange(e.target.files);
                     handleIndividualFileUpload(e.target.files?.[0], name, isPdfAllowed);
                   }}
                   disabled={isLoadingFile}
@@ -455,17 +438,20 @@ export default function RegistrationForm() {
               </FormControl>
               <FormDescription>{description} Max 5MB.</FormDescription>
               {isLoadingFile && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload...</div>}
-              {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil.</div>}
-              
-              {!isLoadingFile && form.formState.errors[name] && !form.formState.errors[currentRenderScopeUrlFieldName] && (
+              {!isLoadingFile && uploadedUrl && <div className="flex items-center text-sm text-green-600 mt-1"><CheckCircle className="mr-2 h-4 w-4" /> Upload berhasil. <Link href={uploadedUrl as string} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs underline">Lihat file</Link></div>}
+
+              {/* Display Zod error for the FileList input itself (e.g. "File dibutuhkan") */}
+              {form.formState.errors[name] && (
                    <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[name]?.message}</div>
               )}
-              {!isLoadingFile && form.formState.errors[currentRenderScopeUrlFieldName] && ( 
+              {/* Display Zod error for the URL field (e.g. "URL KTP tidak valid atau upload gagal.") if upload failed or URL not set for required field */}
+              {!isLoadingFile && form.formState.errors[currentRenderScopeUrlFieldName] && (
                    <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {form.formState.errors[currentRenderScopeUrlFieldName]?.message}</div>
               )}
-              <FormMessage name={name}/> 
-              
-              {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && (
+              <FormMessage name={name}/>
+
+
+              {fileListValue?.[0] && fileListValue[0] instanceof File && !isLoadingFile && !uploadedUrl && ( // Show local preview only if not yet uploaded or upload failed
                 <div className="mt-2">
                   {fileListValue[0].type.startsWith("image/") ? (
                     <Image src={URL.createObjectURL(fileListValue[0])} alt={`Preview ${label}`} width={200} height={120} className="rounded object-contain border" data-ai-hint={dataAiHint || "document"} />
@@ -796,4 +782,3 @@ export default function RegistrationForm() {
     </Form>
   );
 }
-
