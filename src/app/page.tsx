@@ -129,12 +129,12 @@ export default function Home() {
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
-            src="https://res.cloudinary.com/dj0g9plk8/image/upload/v1716276900/koperasi_indonesia_logo.png"
-            alt="Logo Koperasi Merah Putih Sejahtera" 
-            width={100} 
-            height={100} 
-            className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" 
-            data-ai-hint="merah putih cooperative"
+            src="/images/logo_koperasi_utama.png" // PATH LOKAL BARU
+            alt="Logo Koperasi Merah Putih Sejahtera Utama" 
+            width={100} // Sesuaikan dengan ukuran asli logo Anda
+            height={100} // Sesuaikan dengan ukuran asli logo Anda
+            className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32 object-cover" 
+            data-ai-hint="logo koperasi utama" // DATA AI HINT BARU
           />
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
           <p className="text-base sm:text-lg text-primary/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
