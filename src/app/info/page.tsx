@@ -12,7 +12,7 @@ export default function CooperativeInfoPage() {
   return (
     <div className="space-y-8">
       <header className="text-center py-8 bg-secondary rounded-lg shadow-md">
-        <Image src="https://placehold.co/120x120.png" alt="Logo Koperasi Detail" width={120} height={120} className="mx-auto mb-4 rounded-full" data-ai-hint="cooperative logo" />
+        <Image src="/images/logo_koperasi_utama.png" alt="Logo Koperasi Detail" width={120} height={120} className="mx-auto mb-4 rounded-full" data-ai-hint="cooperative logo" />
         <h1 className="text-4xl font-headline font-bold text-primary">{cooperativeInfo.name}</h1>
         <p className="text-lg text-muted-foreground">Informasi Detail Koperasi</p>
       </header>
@@ -89,3 +89,4 @@ export default function CooperativeInfoPage() {
     </div>
   );
 }
+
