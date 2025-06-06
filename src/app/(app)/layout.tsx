@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import AppFooter from '@/components/layout/app-footer';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send } from 'lucide-react'; // Added History, Send
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare } from 'lucide-react'; // Added MessageSquare
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -52,8 +52,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    return (
-         <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+    // This state should be very brief as useEffect above will redirect.
+    // Or if the redirect fails for some reason, this is a fallback.
+     return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
             <Alert variant="destructive" className="max-w-md">
               <ShieldAlert className="h-4 w-4" />
               <AlertTitle>Sesi Tidak Ditemukan</AlertTitle>
@@ -78,7 +80,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/dashboard', label: 'Dasbor Admin', icon: LayoutDashboard },
     { href: '/admin/members', label: 'Manajemen Anggota', icon: UserCircle },
     { href: '/admin/applications', label: 'Verifikasi Pendaftaran', icon: FileText },
-    { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign }, // Renamed for clarity
+    { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
     ...commonMenuItems,
@@ -86,14 +88,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
-    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, // Icon changed
-    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, // New Item
+    // Direct link to apply page is less prominent now, modal on dashboard is primary
+    // { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, 
+    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, 
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
+    // { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare }, // Placeholder for future chat/messages page
     ...commonMenuItems,
   ];
 
-  let currentMenuItems = commonMenuItems; // Default for prospective_member or unknown roles within (app)
+  let currentMenuItems = commonMenuItems; 
   if (user) {
     if (isAdmin) {
       currentMenuItems = adminMenuItems;
@@ -152,9 +156,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="p-4 sm:p-6 md:p-8">
          {children}
         </div>
-        {/* Footer removed from here, as RootLayout has one */}
       </SidebarInset>
     </SidebarProvider>
   );
 }
 
+    
