@@ -36,6 +36,9 @@ export default function Home() {
   const [surveySubmitterName, setSurveySubmitterName] = useState('');
   const [isSubmittingSurvey, setIsSubmittingSurvey] = useState(false);
 
+  const cooperativeLogoUrl = "https://res.cloudinary.com/dj0g9plk8/image/upload/v1716276900/koperasi_indonesia_logo.png";
+
+
   useEffect(() => {
     const fetchAnnouncements = async () => {
       setAnnouncementsLoading(true);
@@ -112,9 +115,29 @@ export default function Home() {
 
   return (
     <div className="space-y-8 sm:space-y-12">
-      <section className="text-center py-8 sm:py-12 bg-gradient-to-br from-primary/80 via-primary to-accent/80 rounded-lg shadow-xl">
-        <div className="container mx-auto px-4">
-          <Image src="https://placehold.co/100x100.png" alt="Logo Koperasi" width={100} height={100} className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" data-ai-hint="cooperative logo" />
+      <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-no-repeat bg-cover bg-center"
+          style={{ backgroundImage: `url(${cooperativeLogoUrl})` }}
+          aria-hidden="true"
+        ></div>
+        {/* Gradient Overlay for text readability */}
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-primary/80 via-primary/70 to-accent/80"
+          aria-hidden="true"
+        ></div>
+
+        {/* Content */}
+        <div className="relative container mx-auto px-4 z-10">
+          <Image 
+            src="https://placehold.co/100x100.png" // This is the smaller foreground logo
+            alt="Logo Koperasi Merah Putih Sejahtera" 
+            width={100} 
+            height={100} 
+            className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32" 
+            data-ai-hint="cooperative logo" 
+          />
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary-foreground drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
           <p className="text-base sm:text-lg text-primary-foreground/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
           <p className="text-sm sm:text-base text-primary-foreground/90">{cooperativeInfo.established}</p>
@@ -296,3 +319,4 @@ export default function Home() {
     </div>
   );
 }
+
