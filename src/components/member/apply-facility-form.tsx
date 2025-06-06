@@ -12,26 +12,34 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, UploadCloud } from 'lucide-react';
+import { Loader2, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
 import type { FacilityApplicationData } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions } from '@/types';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { cn } from '@/lib/utils'; // Ensure this import is present
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+const ACCEPTED_PDF_TYPES = ["application/pdf"];
+const ALL_ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES];
 
-const fileSchema = z.instanceof(FileList)
+// Cloudinary constants
+const CLOUDINARY_CLOUD_NAME = 'dj0g9plk8';
+const CLOUDINARY_UPLOAD_PRESET = 'koperasi_unsigned_preset';
+
+// Schema for a single file input from the user's perspective (before upload)
+const fileInputSchema = z.instanceof(FileList)
   .optional()
   .refine(
     (files) => !files || files.length === 0 || files[0].size <= MAX_FILE_SIZE,
     `Ukuran file maksimal 5MB.`
   )
   .refine(
-    (files) => !files || files.length === 0 || ACCEPTED_FILE_TYPES.includes(files[0].type),
+    (files) => !files || files.length === 0 || ALL_ACCEPTED_TYPES.includes(files[0].type),
     "Format file tidak valid. Hanya JPG, PNG, WEBP, atau PDF."
   );
 
@@ -49,10 +57,11 @@ const applicationSchema = z.object({
   hasAppliedBefore: z.enum(['Ya', 'Tidak'], { required_error: "Mohon pilih salah satu." }),
   previousApplicationDetails: z.string().optional(),
   additionalNotes: z.string().optional(),
-  proposalFile: fileSchema,
-  productPhotoFile: fileSchema,
-  statementLetterFile: fileSchema,
-  otherSupportFile: fileSchema,
+  // These fields will hold the FileList object from the input for Zod validation
+  proposalFile: fileInputSchema,
+  productPhotoFile: fileInputSchema,
+  statementLetterFile: fileInputSchema,
+  otherSupportFile: fileInputSchema,
 }).refine(data => {
     if (data.facilityType === 'Lainnya') {
       return !!data.specificProductName && data.specificProductName.length > 0;
@@ -82,20 +91,40 @@ const applicationSchema = z.object({
   });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
+type FileInputFieldName = 'proposalFile' | 'productPhotoFile' | 'statementLetterFile' | 'otherSupportFile';
+
+interface FileUploadStatus {
+  isLoading: boolean;
+  url?: string;
+  error?: string;
+  fileDetails?: {
+    name: string;
+    type: string;
+    size: number;
+    previewUrl?: string; // For image previews
+  };
+}
 
 interface ApplyFacilityFormProps {
-  onFormSubmitSuccess?: () => void; // Callback for successful submission, e.g., to close a modal
+  onFormSubmitSuccess?: () => void;
   className?: string;
 }
 
 export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: ApplyFacilityFormProps) {
-  const { user } = useAuth(); // authLoading is handled by parent page
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [filePreviews, setFilePreviews] = useState<Record<string, string | null>>({});
+
+  const [fileUploadStates, setFileUploadStates] = useState<Record<FileInputFieldName, FileUploadStatus>>({
+    proposalFile: { isLoading: false },
+    productPhotoFile: { isLoading: false },
+    statementLetterFile: { isLoading: false },
+    otherSupportFile: { isLoading: false },
+  });
 
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
+    mode: "onChange",
     defaultValues: {
       memberFullName: '',
       memberIdNumber: '',
@@ -108,6 +137,10 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       previousApplicationDetails: '',
       additionalNotes: '',
       hasAppliedBefore: undefined,
+      proposalFile: undefined,
+      productPhotoFile: undefined,
+      statementLetterFile: undefined,
+      otherSupportFile: undefined,
     },
   });
 
@@ -132,23 +165,100 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
     }
   }, [user, form]);
 
-  const handleFileUploadForField = async (file: File | undefined, fieldName: keyof ApplicationFormValues) => {
+  const handleIndividualFileUpload = async (
+    file: File | undefined,
+    fieldName: FileInputFieldName
+  ) => {
     if (!file) {
-      setFilePreviews(prev => ({ ...prev, [fieldName]: null }));
-      form.setValue(fieldName as any, undefined);
+      setFileUploadStates(prev => ({
+        ...prev,
+        [fieldName]: { isLoading: false, url: undefined, error: undefined, fileDetails: undefined }
+      }));
+      // form.setValue(fieldName, undefined); // Clearing FileList for Zod, handled by Input onChange
+      form.clearErrors(fieldName);
       return;
     }
 
-    if (!ACCEPTED_FILE_TYPES.includes(file.type) || file.size > MAX_FILE_SIZE) {
-      toast({ title: "File Tidak Sesuai", description: `File ${file.name} tidak valid (format/ukuran).`, variant: "destructive" });
-      setFilePreviews(prev => ({ ...prev, [fieldName]: null }));
-      form.setValue(fieldName as any, undefined);
-      form.setError(fieldName as any, { message: "File tidak valid."});
-      return;
+    // Validate with a simpler, direct validation for immediate feedback
+    if (file.size > MAX_FILE_SIZE) {
+        toast({ title: "Upload Gagal", description: `File ${file.name} terlalu besar (Maks 5MB).`, variant: "destructive" });
+        form.setValue(fieldName, undefined); // Clear the invalid file from react-hook-form
+        form.setError(fieldName, { message: "Ukuran file maksimal 5MB."});
+        setFileUploadStates(prev => ({ ...prev, [fieldName]: { isLoading: false, error: "File terlalu besar", fileDetails: undefined }}));
+        return;
     }
-    form.clearErrors(fieldName as any);
-    setFilePreviews(prev => ({ ...prev, [fieldName]: URL.createObjectURL(file) }));
+    if (!ALL_ACCEPTED_TYPES.includes(file.type)) {
+        toast({ title: "Upload Gagal", description: `Format file ${file.name} tidak didukung.`, variant: "destructive" });
+        form.setValue(fieldName, undefined);
+        form.setError(fieldName, { message: "Format file tidak valid."});
+        setFileUploadStates(prev => ({ ...prev, [fieldName]: { isLoading: false, error: "Format file tidak valid", fileDetails: undefined }}));
+        return;
+    }
+    form.clearErrors(fieldName);
+
+
+    setFileUploadStates(prev => ({
+      ...prev,
+      [fieldName]: {
+        isLoading: true,
+        url: undefined,
+        error: undefined,
+        fileDetails: {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+        }
+      }
+    }));
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `Cloudinary upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const cloudinaryUrl = data.secure_url;
+
+      if (cloudinaryUrl) {
+        setFileUploadStates(prev => ({
+          ...prev,
+          [fieldName]: {
+            isLoading: false,
+            url: cloudinaryUrl,
+            error: undefined,
+            fileDetails: prev[fieldName].fileDetails // Keep existing fileDetails
+          }
+        }));
+        toast({ title: "Upload Berhasil", description: `${file.name} telah diupload.` });
+      } else {
+        throw new Error('Upload berhasil, tetapi URL tidak diterima dari Cloudinary.');
+      }
+    } catch (err: any) {
+      console.error(`Error uploading ${fieldName} to Cloudinary:`, err);
+      toast({ title: "Upload Gagal", description: `Gagal mengupload ${file.name}. ${err.message}`, variant: "destructive" });
+      setFileUploadStates(prev => ({
+        ...prev,
+        [fieldName]: {
+          isLoading: false,
+          url: undefined,
+          error: `Upload ${file.name} gagal.`,
+          fileDetails: prev[fieldName].fileDetails // Keep existing fileDetails for retry or new selection
+        }
+      }));
+    }
   };
+
 
   const onSubmit = async (data: ApplicationFormValues) => {
     if (user?.status !== 'approved') {
@@ -159,40 +269,29 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       });
       return;
     }
+
+    if (Object.values(fileUploadStates).some(s => s.isLoading)) {
+      toast({ title: "Proses Unggah", description: "Mohon tunggu semua file selesai diunggah sebelum mengirim.", variant: "destructive" });
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
-      const supportingDocuments: { name: string; url: string; type: string; size: number }[] = [];
-      const CLOUDINARY_CLOUD_NAME = 'dj0g9plk8';
-      const CLOUDINARY_UPLOAD_PRESET = 'koperasi_unsigned_preset';
-
-      const uploadPromises: Promise<void>[] = [];
-
-      const processUpload = async (fileList: FileList | undefined, originalName: string) => {
-        if (fileList && fileList.length > 0) {
-          const file = fileList[0];
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-          
-          const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
-            method: 'POST',
-            body: formData,
+      const supportingDocuments: Array<{ name: string; url: string; type: string; size: number }> = [];
+      (Object.keys(fileUploadStates) as FileInputFieldName[]).forEach(fieldName => {
+        const status = fileUploadStates[fieldName];
+        if (status.url && status.fileDetails) {
+          supportingDocuments.push({
+            name: status.fileDetails.name,
+            url: status.url,
+            type: status.fileDetails.type,
+            size: status.fileDetails.size,
           });
-          if (!response.ok) throw new Error(`Upload ${file.name} gagal.`);
-          const result = await response.json();
-          supportingDocuments.push({ name: originalName || file.name, url: result.secure_url, type: file.type, size: file.size });
         }
-      };
-      
-      if (data.proposalFile && data.proposalFile.length > 0) uploadPromises.push(processUpload(data.proposalFile, "Proposal Usaha"));
-      if (data.productPhotoFile && data.productPhotoFile.length > 0) uploadPromises.push(processUpload(data.productPhotoFile, "Foto Produk/Alat"));
-      if (data.statementLetterFile && data.statementLetterFile.length > 0) uploadPromises.push(processUpload(data.statementLetterFile, "Surat Pernyataan"));
-      if (data.otherSupportFile && data.otherSupportFile.length > 0) uploadPromises.push(processUpload(data.otherSupportFile, "Dokumen Pendukung Lainnya"));
+      });
 
-      await Promise.all(uploadPromises);
-
-      const applicationToSave: Omit<FacilityApplicationData, 'id' | 'proposalFile' | 'productPhotoFile' | 'statementLetterFile' | 'otherSupportFile'> = {
+      const applicationToSave: Omit<FacilityApplicationData, 'id'> = {
         userId: user!.uid,
         memberFullName: data.memberFullName,
         memberIdNumber: data.memberIdNumber,
@@ -219,8 +318,21 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         title: 'Pengajuan Berhasil Dikirim!',
         description: 'Pengajuan Anda telah diterima dan akan segera diproses.',
       });
-      form.reset();
-      setFilePreviews({});
+      form.reset(); // Resets form fields bound by react-hook-form
+      // Reset file upload states
+      setFileUploadStates({
+        proposalFile: { isLoading: false },
+        productPhotoFile: { isLoading: false },
+        statementLetterFile: { isLoading: false },
+        otherSupportFile: { isLoading: false },
+      });
+      // Reset FileList values in the form
+      form.setValue('proposalFile', undefined);
+      form.setValue('productPhotoFile', undefined);
+      form.setValue('statementLetterFile', undefined);
+      form.setValue('otherSupportFile', undefined);
+
+
       if (onFormSubmitSuccess) {
         onFormSubmitSuccess();
       }
@@ -235,44 +347,68 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       setIsSubmitting(false);
     }
   };
-  
+
   const renderFileInput = (
-    formFieldName: keyof ApplicationFormValues,
+    formFieldName: FileInputFieldName,
     label: string,
+    description: string,
     dataAiHint?: string
-  ) => (
-    <FormField
-      control={form.control}
-      name={formFieldName}
-      render={({ field: { onChange, value, ...restField }}) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <Input
-              type="file"
-              accept={ACCEPTED_FILE_TYPES.join(",")}
-              onChange={(e) => {
-                onChange(e.target.files);
-                handleFileUploadForField(e.target.files?.[0], formFieldName);
-              }}
-              {...restField}
-              className="border-dashed border-2 hover:border-primary pt-2"
-            />
-          </FormControl>
-          <FormDescription>Format: JPG, PNG, WEBP, PDF. Maks 5MB.</FormDescription>
-          {filePreviews[formFieldName] && !filePreviews[formFieldName]?.endsWith('pdf') && (
-            <Image src={filePreviews[formFieldName]!} alt={`Preview ${label}`} width={100} height={100} className="mt-2 rounded border" data-ai-hint={dataAiHint || "document"} />
-          )}
-          {filePreviews[formFieldName] && filePreviews[formFieldName]?.endsWith('pdf') && (
-             <p className="text-xs text-muted-foreground mt-1">Pratinjau PDF: {value?.[0]?.name}</p>
-          )}
-           {form.formState.errors[formFieldName] && (
-             <FormMessage>{form.formState.errors[formFieldName]?.message?.toString()}</FormMessage>
-           )}
-        </FormItem>
-      )}
-    />
-  );
+  ) => {
+    const uploadStatus = fileUploadStates[formFieldName];
+    const currentFileList = form.watch(formFieldName);
+
+    return (
+      <FormField
+        control={form.control}
+        name={formFieldName}
+        render={({ field: { onChange: onRHFChange, ref: fieldRef, ...restField } }) => ( // Exclude value from ...restField
+          <FormItem>
+            <FormLabel>{label}</FormLabel>
+            <FormControl>
+              <Input
+                type="file"
+                accept={ALL_ACCEPTED_TYPES.join(",")}
+                onChange={(e) => {
+                  const files = e.target.files;
+                  onRHFChange(files); // Update react-hook-form state
+                  handleIndividualFileUpload(files?.[0], formFieldName);
+                }}
+                disabled={uploadStatus.isLoading}
+                ref={fieldRef}
+                className="pt-2 border-dashed border-2 hover:border-primary"
+                // value is not set on file inputs for clearing/reset
+              />
+            </FormControl>
+            <FormDescription>{description} Max 5MB.</FormDescription>
+            
+            {uploadStatus.isLoading && <div className="flex items-center text-sm text-muted-foreground mt-1"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengupload {uploadStatus.fileDetails?.name}...</div>}
+            
+            {!uploadStatus.isLoading && uploadStatus.url && uploadStatus.fileDetails && (
+                <div className="flex items-center text-sm text-green-600 mt-1">
+                    <CheckCircle className="mr-2 h-4 w-4" /> {uploadStatus.fileDetails.name} berhasil diupload.
+                    <Link href={uploadStatus.url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs underline hover:text-primary">Lihat file</Link>
+                </div>
+            )}
+            {!uploadStatus.isLoading && uploadStatus.error && (
+                 <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {uploadStatus.error} ({uploadStatus.fileDetails?.name})</div>
+            )}
+             {/* Show preview from react-hook-form's FileList if no URL and not loading, or if upload failed */}
+            {!uploadStatus.isLoading && !uploadStatus.url && currentFileList?.[0] && (
+              <div className="mt-2">
+                {currentFileList[0].type.startsWith("image/") ? (
+                  <Image src={URL.createObjectURL(currentFileList[0])} alt={`Preview ${label}`} width={100} height={100} className="rounded object-contain border" data-ai-hint={dataAiHint || "document"} />
+                ) : currentFileList[0].type === "application/pdf" ? (
+                  <p className="text-sm text-muted-foreground">Pratinjau PDF: {currentFileList[0].name}</p>
+                ) : null}
+              </div>
+            )}
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    );
+  };
+
 
   return (
     <Form {...form}>
@@ -292,10 +428,10 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             </FormItem>
           )} />
           {form.watch('facilityType') === 'Lainnya' && (
-            <FormField control={form.control} name="specificProductName" render={({ field }) => (<FormItem><FormLabel>Nama Produk atau Layanan Khusus</FormLabel><FormControl><Input {...field} placeholder="Cth: Pupuk Urea 50 kg" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="specificProductName" render={({ field }) => (<FormItem><FormLabel>Nama Produk atau Layanan Khusus</FormLabel><FormControl><Input {...field} placeholder="Cth: Pupuk Urea 50 kg" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
           )}
-          <FormField control={form.control} name="quantityOrAmount" render={({ field }) => (<FormItem><FormLabel>Jumlah atau Kuantitas yang Diajukan</FormLabel><FormControl><Input {...field} placeholder="Cth: 5 unit, Rp 5.000.000" /></FormControl><FormMessage /></FormItem>)} />
-          <FormField control={form.control} name="purpose" render={({ field }) => (<FormItem><FormLabel>Tujuan atau Kebutuhan Penggunaan</FormLabel><FormControl><Textarea {...field} placeholder="Jelaskan tujuan pengajuan Anda" /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="quantityOrAmount" render={({ field }) => (<FormItem><FormLabel>Jumlah atau Kuantitas yang Diajukan</FormLabel><FormControl><Input {...field} placeholder="Cth: 5 unit, Rp 5.000.000" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="purpose" render={({ field }) => (<FormItem><FormLabel>Tujuan atau Kebutuhan Penggunaan</FormLabel><FormControl><Textarea {...field} placeholder="Jelaskan tujuan pengajuan Anda" value={field.value ?? ''}/></FormControl><FormMessage /></FormItem>)} />
 
           <FormField control={form.control} name="memberBusinessArea" render={({ field }) => (
             <FormItem>
@@ -308,10 +444,10 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             </FormItem>
           )} />
           {form.watch('memberBusinessArea') === 'Lainnya' && (
-            <FormField control={form.control} name="otherMemberBusinessArea" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya</FormLabel><FormControl><Input {...field} placeholder="Sebutkan bidang usaha Anda" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="otherMemberBusinessArea" render={({ field }) => (<FormItem><FormLabel>Bidang Usaha Lainnya</FormLabel><FormControl><Input {...field} placeholder="Sebutkan bidang usaha Anda" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
           )}
 
-          <FormField control={form.control} name="estimatedUsageOrRepaymentTime" render={({ field }) => (<FormItem><FormLabel>Estimasi Waktu Penggunaan atau Pelunasan (Jika Pinjaman)</FormLabel><FormControl><Input {...field} placeholder="Cth: 3 bulan, atau tanggal YYYY-MM-DD" /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="estimatedUsageOrRepaymentTime" render={({ field }) => (<FormItem><FormLabel>Estimasi Waktu Penggunaan atau Pelunasan (Jika Pinjaman)</FormLabel><FormControl><Input {...field} placeholder="Cth: 3 bulan, atau tanggal YYYY-MM-DD" value={field.value ?? ''}/></FormControl><FormMessage /></FormItem>)} />
 
           <FormField control={form.control} name="hasAppliedBefore" render={({ field }) => (
             <FormItem className="space-y-3">
@@ -326,23 +462,22 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             </FormItem>
           )} />
           {form.watch('hasAppliedBefore') === 'Ya' && (
-            <FormField control={form.control} name="previousApplicationDetails" render={({ field }) => (<FormItem><FormLabel>Jika Ya, jelaskan bentuk bantuan dan statusnya</FormLabel><FormControl><Textarea {...field} placeholder="Cth: Pinjaman modal Rp 2.000.000, status Lunas" /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="previousApplicationDetails" render={({ field }) => (<FormItem><FormLabel>Jika Ya, jelaskan bentuk bantuan dan statusnya</FormLabel><FormControl><Textarea {...field} placeholder="Cth: Pinjaman modal Rp 2.000.000, status Lunas" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
           )}
 
           <h3 className="text-md font-semibold pt-4 border-t">Upload Dokumen Pendukung (Opsional)</h3>
-          {renderFileInput('proposalFile', 'Proposal Usaha', 'business proposal')}
-          {renderFileInput('productPhotoFile', 'Foto Produk / Alat', 'product photo')}
-          {renderFileInput('statementLetterFile', 'Surat Pernyataan', 'statement letter')}
-          {renderFileInput('otherSupportFile', 'Dokumen Pendukung Lainnya', 'document scan')}
+          {renderFileInput('proposalFile', 'Proposal Usaha (Jika Ada)', 'Format: JPG, PNG, WEBP, PDF.', 'business proposal')}
+          {renderFileInput('productPhotoFile', 'Foto Produk / Alat (Jika Relevan)', 'Format: JPG, PNG, WEBP, PDF.', 'product item equipment')}
+          {renderFileInput('statementLetterFile', 'Surat Pernyataan (Jika Diminta)', 'Format: JPG, PNG, WEBP, PDF.', 'formal letter document')}
+          {renderFileInput('otherSupportFile', 'Dokumen Pendukung Lainnya', 'Format: JPG, PNG, WEBP, PDF.', 'document scan certificate')}
 
-          <FormField control={form.control} name="additionalNotes" render={({ field }) => (<FormItem><FormLabel>Catatan Tambahan (Opsional)</FormLabel><FormControl><Textarea {...field} placeholder="Informasi tambahan yang relevan" /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="additionalNotes" render={({ field }) => (<FormItem><FormLabel>Catatan Tambahan (Opsional)</FormLabel><FormControl><Textarea {...field} placeholder="Informasi tambahan yang relevan" value={field.value ?? ''}/></FormControl><FormMessage /></FormItem>)} />
         
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" className="w-full" disabled={isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)}>
+          {(isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Kirim Pengajuan
         </Button>
       </form>
     </Form>
   );
 }
-    
