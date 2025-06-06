@@ -4,11 +4,12 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings } from "lucide-react";
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // Dummy data for dashboard stats
 const dashboardStats = [
@@ -20,9 +21,9 @@ const dashboardStats = [
 
 const quickActions = [
   { label: "Verifikasi Anggota Baru", href: "/admin/applications", icon: FileText },
-  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: MessageSquare },
+  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: MessageSquare }, // Placeholder for new announcement
   { label: "Lihat Laporan Keuangan", href: "/admin/reports", icon: BarChart },
-  { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings },
+  { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, // Should link to /settings or a specific /admin/settings page
 ];
 
 export default function AdminDashboardPage() {
@@ -31,17 +32,33 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!loading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-      router.push('/'); // Redirect if not an admin type
+      router.push('/'); 
     }
   }, [user, loading, router]);
 
 
   if (loading) {
-    return <div className="text-center p-10">Memuat dasbor admin...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-lg text-muted-foreground">Memuat dasbor admin...</p>
+      </div>
+    );
   }
 
   if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-     return <div className="text-center p-10">Anda tidak memiliki akses ke halaman ini.</div>;
+     return (
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
+            <Alert variant="destructive" className="max-w-md">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>Akses Ditolak</AlertTitle>
+                <AlertDescription>Anda tidak memiliki izin untuk mengakses halaman ini. Silakan login dengan akun admin.</AlertDescription>
+            </Alert>
+            <Button onClick={() => router.push('/login')} className="mt-6">
+              Ke Halaman Login
+            </Button>
+        </div>
+     );
   }
   
   const adminName = user.displayName || user.email;
@@ -112,7 +129,7 @@ export default function AdminDashboardPage() {
       </Card>
       
       {/* Data Export Section (Placeholder) */}
-       {user.role === 'admin_utama' || user.role === 'dinas' ? ( // Only for specific roles
+       {(user.role === 'admin_utama' || user.role === 'dinas') && ( 
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl font-headline text-accent">Ekspor Data Anggota</CardTitle>
@@ -127,7 +144,7 @@ export default function AdminDashboardPage() {
             </Button>
           </CardContent>
         </Card>
-      ) : null}
+      )}
 
     </div>
   );

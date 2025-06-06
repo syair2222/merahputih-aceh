@@ -1,16 +1,35 @@
 
-'use client'; // This layout might use client-side hooks for auth checks or sidebar state
+'use client'; 
 
 import type { ReactNode } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar'; // Assuming sidebar components exist
-import AppNavbar from '@/components/layout/app-navbar'; // Re-using AppNavbar, or create a specific dashboard navbar
+import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import AppFooter from '@/components/layout/app-footer';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Annoyed } from 'lucide-react';
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert } from 'lucide-react'; // Replaced Annoyed with Megaphone, added ShieldAlert
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+
+// Loader component (jika belum ada secara global atau di file util)
+const Loader2 = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </svg>
+);
+
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
@@ -19,9 +38,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/login');
+      // Jika tidak loading dan tidak ada user, redirect ke login
+      // Kecuali jika sudah di halaman login/register untuk menghindari loop
+      if (pathname !== '/login' && pathname !== '/register') {
+        router.push('/login');
+      }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
@@ -32,13 +55,34 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user) {
-    // This should ideally not be reached if useEffect redirects, but as a fallback
-    return null; 
+  // Jika tidak loading, tapi tetap tidak ada user (misalnya setelah gagal memuat user),
+  // dan kita tidak sedang di halaman auth, tampilkan pesan atau redirect.
+  if (!user && !loading && pathname !== '/login' && pathname !== '/register') {
+    // Ini bisa menjadi fallback jika useEffect di atas belum sempat redirect,
+    // atau jika user menjadi null setelah loading selesai.
+    return (
+         <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+            <Alert variant="destructive" className="max-w-md">
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Sesi Tidak Ditemukan</AlertTitle>
+              <AlertDescription>
+                Anda tidak terautentikasi. Silakan login untuk melanjutkan.
+              </AlertDescription>
+            </Alert>
+            <Button onClick={() => router.push('/login')} className="mt-6">
+              Ke Halaman Login
+            </Button>
+        </div>
+    );
   }
+  
+  // Jika user ada, kita bisa lanjutkan render layout
+  // Namun, jika user ada tapi tidak memiliki peran yang sesuai untuk halaman admin/member tertentu,
+  // halaman spesifik tersebut yang seharusnya menangani redirect atau pesan akses ditolak.
+  // AppLayout hanya memastikan user ada untuk halaman-halaman di dalam (app).
 
-  const isAdmin = user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas';
-  const isMember = user.role === 'member';
+  const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
+  const isMember = user?.role === 'member';
   
   const commonMenuItems = [
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
@@ -51,7 +95,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/applications', label: 'Verifikasi Pendaftaran', icon: FileText },
     { href: '/admin/facilities', label: 'Manajemen Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
-    { href: '/admin/announcements', label: 'Pengumuman', icon: Annoyed },
+    { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone }, // Changed from Annoyed
     ...commonMenuItems,
   ];
 
@@ -59,24 +103,31 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
     { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: DollarSign },
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
-    { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Annoyed },
+    { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone }, // Changed from Annoyed
     ...commonMenuItems,
   ];
   
-  const currentMenuItems = isAdmin ? adminMenuItems : (isMember ? memberMenuItems : commonMenuItems);
+  // Default ke commonMenuItems jika peran tidak dikenali, atau jika user belum sepenuhnya dimuat.
+  let currentMenuItems = commonMenuItems;
+  if (user) { // Pastikan user ada sebelum mengecek role
+    if (isAdmin) {
+      currentMenuItems = adminMenuItems;
+    } else if (isMember) {
+      currentMenuItems = memberMenuItems;
+    }
+    // Jika bukan admin atau member (misal prospective_member), mereka tetap pakai commonMenuItems
+  }
 
 
   return (
     <SidebarProvider defaultOpen>
-       {/* AppNavbar can be here if you want a global top bar even with sidebar */}
-       {/* <AppNavbar />  */}
       <Sidebar side="left" variant="sidebar" collapsible="icon">
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
              <img src="https://placehold.co/40x40.png" alt="Koperasi Logo" className="rounded-full" data-ai-hint="cooperative logo" />
             <div className="group-data-[collapsible=icon]:hidden">
               <p className="font-headline text-lg font-semibold text-sidebar-primary">Koperasi Digital</p>
-              <p className="text-xs text-sidebar-foreground/80">{user.displayName || user.email}</p>
+              <p className="text-xs text-sidebar-foreground/80">{user?.displayName || user?.email}</p>
             </div>
           </div>
         </SidebarHeader>
@@ -86,7 +137,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton 
                   asChild 
-                  isActive={pathname === item.href || (item.href !== '/admin/dashboard' && item.href !== '/member/dashboard' && pathname.startsWith(item.href))}
+                  isActive={pathname === item.href || (item.href !== '/admin/dashboard' && item.href !== '/member/dashboard' && pathname.startsWith(item.href) && item.href !== '/')}
                   tooltip={{children: item.label, className: "bg-primary text-primary-foreground"}}
                 >
                   <Link href={item.href} >
@@ -122,23 +173,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
-
-// Loader component
-const Loader2 = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);
-
