@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -107,3 +108,83 @@ h1, h2, h3, h4, h5, h6 {
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* Print Styles */
+@media print {
+  body {
+    font-size: 10pt;
+    color: #000;
+    background-color: #fff;
+  }
+  nav, footer, .no-print,
+  /* Sidebar specific classes to hide */
+  [data-sidebar="sidebar"],
+  [data-sidebar="trigger"],
+  [data-sidebar="rail"],
+  .group\/sidebar-wrapper > .peer,
+  header.md\:hidden /* Hide mobile header */
+   {
+    display: none !important;
+  }
+  main, .printable-area, .container {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .card {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  a[href]:after {
+    content: none !important; /* Don't show URL for links */
+  }
+  .btn, button {
+    display: none !important; /* Hide buttons by default in print */
+  }
+  .print-show-button { /* Add this class to buttons you WANT to show, if any (rare) */
+    display: inline-flex !important;
+  }
+  h1,h2,h3,h4,h5,h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+  /* Specific page adjustments if needed */
+  /* For example, for forms to be printable for manual filling: */
+  input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea, select {
+    border: 1px solid #aaa !important;
+    background-color: #fdfdfd !important;
+    padding: 2px 4px !important;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    margin-right: 5px !important;
+  }
+  .form-label-print { /* A class you can add to labels to ensure they print well */
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+}
+
+/* Custom drop shadow for cards and buttons for a softer, more "happy" feel */
+.shadow-lg {
+  box-shadow: 0 4px 15px -3px rgba(var(--primary-rgb, 230, 57, 70), 0.15), 0 2px 8px -4px rgba(var(--primary-rgb, 230, 57, 70), 0.1);
+}
+.shadow-xl {
+ box-shadow: 0 10px 25px -5px rgba(var(--primary-rgb, 230, 57, 70), 0.2), 0 5px 15px -5px rgba(var(--primary-rgb, 230, 57, 70), 0.1);
+}
+
+/* Define --primary-rgb for the shadow (example for the default primary red) */
+:root {
+  --primary-rgb: 230, 57, 70;
+}
+.dark {
+  /* Adjust if primary color changes significantly in dark mode or use a neutral shadow color */
+   --primary-rgb: 230, 57, 70; /* Example, could be different */
+}
+
