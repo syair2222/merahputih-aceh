@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,27 +12,28 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Added Alert components
-import { Loader2, UploadCloud, CheckCircle, AlertTriangle, Users } from 'lucide-react'; // Added Users icon
-import type { FacilityApplicationData } from '@/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, UploadCloud, CheckCircle, AlertTriangle, Users, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import type { FacilityApplicationData, MemberRegistrationData } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions } from '@/types';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ACCEPTED_PDF_TYPES = ["application/pdf"];
 const ALL_ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_PDF_TYPES];
 
-// Cloudinary constants
 const CLOUDINARY_CLOUD_NAME = 'dj0g9plk8';
 const CLOUDINARY_UPLOAD_PRESET = 'koperasi_unsigned_preset';
 
-// Schema for a single file input from the user's perspective (before upload)
 const fileInputSchema = z.instanceof(FileList)
   .optional()
   .refine(
@@ -58,11 +59,11 @@ const applicationSchema = z.object({
   hasAppliedBefore: z.enum(['Ya', 'Tidak'], { required_error: "Mohon pilih salah satu." }),
   previousApplicationDetails: z.string().optional(),
   additionalNotes: z.string().optional(),
-  // These fields will hold the FileList object from the input for Zod validation
   proposalFile: fileInputSchema,
   productPhotoFile: fileInputSchema,
   statementLetterFile: fileInputSchema,
   otherSupportFile: fileInputSchema,
+  selectedRecommenderIds: z.array(z.string()).optional().default([]), // New field for selected recommender IDs
 }).refine(data => {
     if (data.facilityType === 'Lainnya') {
       return !!data.specificProductName && data.specificProductName.length > 0;
@@ -102,7 +103,7 @@ interface FileUploadStatus {
     name: string;
     type: string;
     size: number;
-    previewUrl?: string; // For image previews
+    previewUrl?: string;
   };
 }
 
@@ -111,10 +112,18 @@ interface ApplyFacilityFormProps {
   className?: string;
 }
 
+interface AvailableMember {
+  id: string;
+  fullName: string;
+  email?: string; // Optional, for display or future use
+}
+
 export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: ApplyFacilityFormProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [availableMembersForRec, setAvailableMembersForRec] = useState<AvailableMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   const [fileUploadStates, setFileUploadStates] = useState<Record<FileInputFieldName, FileUploadStatus>>({
     proposalFile: { isLoading: false },
@@ -142,6 +151,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       productPhotoFile: undefined,
       statementLetterFile: undefined,
       otherSupportFile: undefined,
+      selectedRecommenderIds: [],
     },
   });
 
@@ -153,7 +163,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             const memberDocRef = doc(db, "members", user.uid);
             const memberDocSnap = await getDoc(memberDocRef);
             if (memberDocSnap.exists()) {
-                const memberDetails = memberDocSnap.data();
+                const memberDetails = memberDocSnap.data() as MemberRegistrationData;
                 const fullAddress = `${memberDetails.addressDusun || ''}, RT/RW ${memberDetails.addressRtRw || ''}, Desa ${memberDetails.addressDesa || ''}, Kec. ${memberDetails.addressKecamatan || ''}`.replace(/^, |, $/g, '');
                 form.setValue('memberAddress', fullAddress);
                 if (memberDetails.memberIdNumber) {
@@ -166,6 +176,29 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
     }
   }, [user, form]);
 
+  useEffect(() => {
+    const fetchAvailableMembers = async () => {
+      if (!user) return;
+      setLoadingMembers(true);
+      try {
+        const membersRef = collection(db, 'members');
+        const q = query(membersRef, where('status', '==', 'approved'));
+        const querySnapshot = await getDocs(q);
+        const membersList = querySnapshot.docs
+          .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as AvailableMember))
+          .filter(member => member.id !== user.uid); // Exclude current user
+        setAvailableMembersForRec(membersList);
+      } catch (error) {
+        console.error("Error fetching available members:", error);
+        toast({ title: "Gagal Memuat Anggota", description: "Tidak dapat memuat daftar anggota untuk rekomendasi.", variant: "destructive" });
+      } finally {
+        setLoadingMembers(false);
+      }
+    };
+    fetchAvailableMembers();
+  }, [user, toast]);
+
+
   const handleIndividualFileUpload = async (
     file: File | undefined,
     fieldName: FileInputFieldName
@@ -175,15 +208,13 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         ...prev,
         [fieldName]: { isLoading: false, url: undefined, error: undefined, fileDetails: undefined }
       }));
-      // form.setValue(fieldName, undefined); // Clearing FileList for Zod, handled by Input onChange
       form.clearErrors(fieldName);
       return;
     }
 
-    // Validate with a simpler, direct validation for immediate feedback
     if (file.size > MAX_FILE_SIZE) {
         toast({ title: "Upload Gagal", description: `File ${file.name} terlalu besar (Maks 5MB).`, variant: "destructive" });
-        form.setValue(fieldName, undefined); // Clear the invalid file from react-hook-form
+        form.setValue(fieldName, undefined); 
         form.setError(fieldName, { message: "Ukuran file maksimal 5MB."});
         setFileUploadStates(prev => ({ ...prev, [fieldName]: { isLoading: false, error: "File terlalu besar", fileDetails: undefined }}));
         return;
@@ -196,7 +227,6 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         return;
     }
     form.clearErrors(fieldName);
-
 
     setFileUploadStates(prev => ({
       ...prev,
@@ -227,7 +257,6 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         const errorData = await response.json();
         throw new Error(errorData.error?.message || `Cloudinary upload failed: ${response.statusText}`);
       }
-
       const data = await response.json();
       const cloudinaryUrl = data.secure_url;
 
@@ -238,7 +267,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             isLoading: false,
             url: cloudinaryUrl,
             error: undefined,
-            fileDetails: prev[fieldName].fileDetails // Keep existing fileDetails
+            fileDetails: prev[fieldName].fileDetails
           }
         }));
         toast({ title: "Upload Berhasil", description: `${file.name} telah diupload.` });
@@ -254,7 +283,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
           isLoading: false,
           url: undefined,
           error: `Upload ${file.name} gagal.`,
-          fileDetails: prev[fieldName].fileDetails // Keep existing fileDetails for retry or new selection
+          fileDetails: prev[fieldName].fileDetails
         }
       }));
     }
@@ -292,6 +321,16 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         }
       });
 
+      const requestedRecommendations = (data.selectedRecommenderIds || [])
+        .map(memberId => {
+            const member = availableMembersForRec.find(m => m.id === memberId);
+            return {
+              memberId: memberId,
+              memberName: member ? member.fullName : 'Anggota Tidak Dikenal', // Fallback
+              status: 'pending' as const
+            };
+          });
+
       const applicationToSave: Omit<FacilityApplicationData, 'id'> = {
         userId: user!.uid,
         memberFullName: data.memberFullName,
@@ -311,9 +350,8 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         applicationDate: serverTimestamp(),
         status: 'pending_review',
         lastUpdated: serverTimestamp(),
-        // Placeholder fields are not saved during initial application
-        // requestedRecommendations: [], 
-        // recommendationCount: 0,
+        requestedRecommendations: requestedRecommendations,
+        recommendationCount: 0, // Initialize count
       };
 
       await addDoc(collection(db, 'facilityApplications'), applicationToSave);
@@ -322,19 +360,18 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         title: 'Pengajuan Berhasil Dikirim!',
         description: 'Pengajuan Anda telah diterima dan akan segera diproses.',
       });
-      form.reset(); // Resets form fields bound by react-hook-form
-      // Reset file upload states
+      form.reset(); 
       setFileUploadStates({
         proposalFile: { isLoading: false },
         productPhotoFile: { isLoading: false },
         statementLetterFile: { isLoading: false },
         otherSupportFile: { isLoading: false },
       });
-      // Reset FileList values in the form
       form.setValue('proposalFile', undefined);
       form.setValue('productPhotoFile', undefined);
       form.setValue('statementLetterFile', undefined);
       form.setValue('otherSupportFile', undefined);
+      form.setValue('selectedRecommenderIds', []);
 
 
       if (onFormSubmitSuccess) {
@@ -365,7 +402,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       <FormField
         control={form.control}
         name={formFieldName}
-        render={({ field: { onChange: onRHFChange, ref: fieldRef, ...restField } }) => ( // Exclude value from ...restField
+        render={({ field: { onChange: onRHFChange, ref: fieldRef, ...restField } }) => (
           <FormItem>
             <FormLabel>{label}</FormLabel>
             <FormControl>
@@ -374,13 +411,12 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
                 accept={ALL_ACCEPTED_TYPES.join(",")}
                 onChange={(e) => {
                   const files = e.target.files;
-                  onRHFChange(files); // Update react-hook-form state
+                  onRHFChange(files); 
                   handleIndividualFileUpload(files?.[0], formFieldName);
                 }}
                 disabled={uploadStatus.isLoading}
                 ref={fieldRef}
                 className="pt-2 border-dashed border-2 hover:border-primary"
-                // value is not set on file inputs for clearing/reset
               />
             </FormControl>
             <FormDescription>{description} Max 5MB.</FormDescription>
@@ -396,7 +432,6 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             {!uploadStatus.isLoading && uploadStatus.error && (
                  <div className="flex items-center text-sm text-destructive mt-1"><AlertTriangle className="mr-2 h-4 w-4" /> {uploadStatus.error} ({uploadStatus.fileDetails?.name})</div>
             )}
-             {/* Show preview from react-hook-form's FileList if no URL and not loading, or if upload failed */}
             {!uploadStatus.isLoading && !uploadStatus.url && currentFileList?.[0] && (
               <div className="mt-2">
                 {currentFileList[0].type.startsWith("image/") ? (
@@ -478,18 +513,55 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
           <FormField control={form.control} name="additionalNotes" render={({ field }) => (<FormItem><FormLabel>Catatan Tambahan (Opsional)</FormLabel><FormControl><Textarea {...field} placeholder="Informasi tambahan yang relevan" value={field.value ?? ''}/></FormControl><FormMessage /></FormItem>)} />
         
           <div className="pt-4 border-t">
-            <Alert variant="default" className="bg-blue-50 border-blue-300 text-blue-700">
-                <Users className="h-5 w-5 text-blue-600" />
-                <AlertTitle className="font-semibold text-blue-800">Fitur Rekomendasi Anggota</AlertTitle>
-                <AlertDescription>
-                  Ingin meminta rekomendasi dari anggota lain untuk memperkuat pengajuan Anda? 
-                  <br />
-                  Fitur ini akan segera hadir! Anda dapat mengundang anggota lain untuk memberikan dukungan atas pengajuan Anda.
-                  <Button type="button" variant="link" className="p-0 h-auto text-blue-700 block mt-1" disabled>
-                    Minta Rekomendasi (Segera Hadir)
-                  </Button>
-                </AlertDescription>
-            </Alert>
+            <FormField
+                control={form.control}
+                name="selectedRecommenderIds"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-md font-semibold">Minta Rekomendasi dari Anggota Lain (Opsional)</FormLabel>
+                        <FormDescription>Pilih anggota yang ingin Anda mintai dukungan untuk pengajuan ini.</FormDescription>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" className="w-full justify-between">
+                                    {field.value && field.value.length > 0 ? `${field.value.length} anggota dipilih` : "Pilih anggota..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[300px] p-0">
+                                {loadingMembers ? (
+                                    <div className="p-4 text-center text-sm text-muted-foreground">Memuat daftar anggota...</div>
+                                ) : availableMembersForRec.length === 0 ? (
+                                    <div className="p-4 text-center text-sm text-muted-foreground">Tidak ada anggota lain yang tersedia untuk dimintai rekomendasi.</div>
+                                ) : (
+                                    <ScrollArea className="max-h-72">
+                                        <div className="p-2 space-y-1">
+                                        {availableMembersForRec.map((member) => (
+                                            <FormItem key={member.id} className="flex flex-row items-center space-x-3 space-y-0 p-2 hover:bg-muted/50 rounded-md">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(member.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const currentValues = field.value || [];
+                                                            return checked
+                                                                ? field.onChange([...currentValues, member.id])
+                                                                : field.onChange(currentValues.filter((id) => id !== member.id));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal text-sm w-full cursor-pointer">
+                                                    {member.fullName} <span className="text-xs text-muted-foreground">({member.email || member.id.substring(0,6)+'...'})</span>
+                                                </FormLabel>
+                                            </FormItem>
+                                        ))}
+                                        </div>
+                                    </ScrollArea>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
           </div>
 
           <Button type="submit" className="w-full mt-6" disabled={isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)}>
@@ -500,4 +572,3 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
     </Form>
   );
 }
-
