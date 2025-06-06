@@ -37,7 +37,7 @@ export default function AppNavbar() {
   ) : user ? (
     <>
       <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground hover:text-primary justify-start w-full" asChild onClick={() => setIsMobileMenuOpen(false)}>
-        <Link href={user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' ? '/admin/dashboard' : '/member/dashboard'}>
+        <Link href={user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' ? '/admin/dashboard' : user.role === 'bank_partner_admin' ? '/bank-admin/dashboard' : user.role === 'related_agency_admin' ? '/agency-admin/dashboard' : '/member/dashboard'}>
           <LayoutDashboard className="mr-2 h-4 w-4" />Dasbor
         </Link>
       </Button>
@@ -66,8 +66,11 @@ export default function AppNavbar() {
   return (
     <nav className="bg-primary shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <Link href="/" className="text-xl sm:text-2xl font-headline text-primary-foreground hover:text-accent transition-colors">
-          Koperasi M. Putih
+        <Link href="/" className="text-primary-foreground hover:text-accent transition-colors">
+          <div className="flex flex-col leading-tight">
+            <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
+            <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
+          </div>
         </Link>
         
         {/* Desktop Menu */}
