@@ -75,8 +75,13 @@ export default function LoginForm() {
         router.push('/admin/dashboard');
       } else if (userRole === 'member') {
         router.push('/member/dashboard');
-      } else {
-        // Prospective members might be redirected to a status page or home
+      } else if (userRole === 'bank_partner_admin') {
+        router.push('/bank-admin/dashboard');
+      } else if (userRole === 'related_agency_admin') {
+        router.push('/agency-admin/dashboard');
+      }
+       else {
+        // Prospective members or unhandled roles
         router.push('/'); 
       }
       // The AuthContext will update itself via onAuthStateChanged

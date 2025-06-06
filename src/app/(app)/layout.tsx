@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building } from 'lucide-react'; // Added Briefcase, Building
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
   const isMember = user?.role === 'member';
+  const isBankAdmin = user?.role === 'bank_partner_admin';
+  const isAgencyAdmin = user?.role === 'related_agency_admin';
 
   const adminMenuItems = [
     { href: '/admin/dashboard', label: 'Dasbor Admin', icon: LayoutDashboard },
@@ -79,15 +81,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
-  // Sesuai urutan dari OCR dan permintaan terakhir:
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
     { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare },
     { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send },
-    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, // Label dari OCR: Riwayat Pengajuan (Rekod Transaksi)
+    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History },
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
-    { href: '/profile', label: 'Profil Saya', icon: UserCircle }, // Sesuai OCR: Profil Saya (setelah item di atas)
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
+  ];
+
+  const bankAdminMenuItems = [
+    { href: '/bank-admin/dashboard', label: 'Dasbor Bank', icon: Building },
+    // { href: '/bank-admin/applications', label: 'Tinjau Pengajuan', icon: FileText }, // Example for future
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
+  ];
+
+  const agencyAdminMenuItems = [
+    { href: '/agency-admin/dashboard', label: 'Dasbor Dinas', icon: Briefcase },
+    // { href: '/agency-admin/programs', label: 'Program Bantuan', icon: FileText }, // Example for future
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
@@ -96,7 +111,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     currentMenuItems = adminMenuItems;
   } else if (isMember) {
     currentMenuItems = memberMenuItems;
-  } else {
+  } else if (isBankAdmin) {
+    currentMenuItems = bankAdminMenuItems;
+  } else if (isAgencyAdmin) {
+    currentMenuItems = agencyAdminMenuItems;
+  }
+   else {
     // Fallback untuk prospective_member atau peran lain/tidak terdefinisi
     currentMenuItems = [
       { href: '/profile', label: 'Profil Saya', icon: UserCircle },

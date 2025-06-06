@@ -10,13 +10,21 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = !!currentUserCookie; // Basic check
 
   const authRoutes = ['/login', '/register', '/forgot-password'];
-  const protectedAppRoutes = ['/admin', '/member', '/profile', '/settings']; // Add other protected routes
+  const protectedAppRoutes = [
+    '/admin', 
+    '/member', 
+    '/profile', 
+    '/settings',
+    '/bank-admin',   // New protected route
+    '/agency-admin'  // New protected route
+  ];
 
   // If trying to access auth page while logged in, redirect to a default page (e.g., dashboard or home)
   if (isAuthenticated && authRoutes.some(route => pathname.startsWith(route))) {
     // Determine redirect based on role if possible, otherwise to a generic authenticated page
     // For now, redirect to home as role isn't easily available in middleware without extra logic
-    return NextResponse.redirect(new URL('/', request.url));
+    // A more robust solution would involve decoding the token or having a separate cookie for role
+    return NextResponse.redirect(new URL('/', request.url)); 
   }
 
   // If trying to access protected app page while not logged in, redirect to login
