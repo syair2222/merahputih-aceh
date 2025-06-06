@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building } from 'lucide-react'; // Added Briefcase, Building
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UsersCog } from 'lucide-react'; // Added UsersCog
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
+  const isAdminUtama = user?.role === 'admin_utama';
   const isMember = user?.role === 'member';
   const isBankAdmin = user?.role === 'bank_partner_admin';
   const isAgencyAdmin = user?.role === 'related_agency_admin';
@@ -77,9 +78,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
-    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
-    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
+
+  if (isAdminUtama) {
+    adminMenuItems.push({ href: '/admin/user-management', label: 'Manajemen Pengguna', icon: UsersCog });
+  }
+  
+  adminMenuItems.push(
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/settings', label: 'Pengaturan Akun', icon: Settings }
+  );
+
 
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },

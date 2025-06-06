@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit } from "lucide-react"; // Added Edit icon
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UsersCog } from "lucide-react"; // Added Edit, UsersCog icons
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -19,9 +19,9 @@ const dashboardStats = [
   { title: "Pengumuman Aktif", value: "5", icon: MessageSquare, color: "text-purple-500", link: "/admin/announcements" },
 ];
 
-const quickActions = [
+const baseQuickActions = [
   { label: "Verifikasi Anggota Baru", href: "/admin/applications", icon: FileText },
-  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: Edit }, // Changed icon to Edit for creation
+  { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: Edit }, 
   { label: "Lihat Laporan Keuangan", href: "/admin/reports", icon: BarChart },
   { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, 
 ];
@@ -29,6 +29,7 @@ const quickActions = [
 export default function AdminDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const [quickActions, setQuickActions] = useState(baseQuickActions);
 
   useEffect(() => {
     if (authLoading) {
@@ -39,11 +40,29 @@ export default function AdminDashboardPage() {
       router.push('/login'); 
       return;
     }
-
-    if (!(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    
+    const isAdminRole = user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas';
+    if (!isAdminRole) {
       router.push('/'); 
       return;
     }
+
+    // Dynamically add User Management if admin_utama
+    if (user.role === 'admin_utama') {
+        // Check if it's already added to prevent duplicates on re-renders
+        if (!baseQuickActions.find(action => action.href === "/admin/user-management")) {
+             setQuickActions(prevActions => [
+                ...prevActions,
+                { label: "Manajemen Pengguna", href: "/admin/user-management", icon: UsersCog }
+            ]);
+        } else {
+             setQuickActions(baseQuickActions); // Ensure base is set if already present logic was faulty
+        }
+    } else {
+        setQuickActions(baseQuickActions);
+    }
+
+
   }, [user, authLoading, router]);
 
 

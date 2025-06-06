@@ -1,4 +1,5 @@
 
+
 export interface PersonalData {
   fullName: string;
   nik: string;
@@ -111,7 +112,16 @@ export interface AnnouncementComment {
   adminResponse?: string;
 }
 
-// UserProfile is in auth-context.ts, can be moved here if needed widely
+export interface UserProfile { // Already exists in auth-context.ts, but defining here for clarity if needed elsewhere
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL?: string | null;
+  role?: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member' | 'bank_partner_admin' | 'related_agency_admin';
+  status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
+  memberIdNumber?: string;
+}
+
 
 export const FacilityTypeOptions = [
   'Pinjaman Usaha',
@@ -211,13 +221,16 @@ export interface FacilityReport {
   photoUrls?: string[]; // URLs of uploaded photos
 }
 
-export interface UserDocument {
+export interface UserDocument { // This is often what's stored in a 'users' collection in Firestore
   uid: string;
   email: string | null;
   displayName: string | null;
-  role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member' | 'bank_partner_admin' | 'related_agency_admin';
-  status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
+  role: UserProfile['role'];
+  status?: UserProfile['status']; // User's account status, not necessarily membership status
   photoURL?: string | null;
-  memberIdNumber?: string;
+  memberIdNumber?: string; // If the user is a member and has an ID
+  createdAt?: any; // Firestore Timestamp
+  lastLogin?: any; // Firestore Timestamp
+  updatedAt?: any; // Firestore Timestamp for user document updates
+  updatedBy?: string; // UID of admin who last updated the user document
 }
-
