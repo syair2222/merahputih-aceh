@@ -27,19 +27,28 @@ const quickActions = [
 ];
 
 export default function AdminDashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  // AppLayout handles the case where user is null after loading.
-  // This useEffect primarily handles role-based redirection if the user is authenticated but not an admin.
   useEffect(() => {
-    if (!loading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-      router.push('/'); 
+    if (authLoading) {
+      return; // Tunggu otentikasi selesai
     }
-  }, [user, loading, router]);
+
+    if (!user) {
+      router.push('/login'); // Arahkan jika tidak login
+      return;
+    }
+
+    if (!(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+      router.push('/'); // Arahkan jika bukan admin
+      return;
+    }
+    // Jika semua pemeriksaan lolos, halaman dapat dirender.
+  }, [user, authLoading, router]);
 
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -48,26 +57,23 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // If AppLayout has done its job, 'user' should not be null here if 'loading' is false.
-  // This check is a secondary guard, primarily for role validation.
+  // Pada titik ini, authLoading false.
+  // useEffect menangani redirect. Jika kita sampai di sini dan kondisi di useEffect
+  // untuk redirect terpenuhi, redirect akan terjadi.
+  // Kita hanya merender dasbor jika pengguna ADALAH admin.
+
   if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    // State ini bersifat transisi sementara useEffect melakukan redirect.
+    // Atau jika useEffect gagal, ini adalah fallback.
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
-            <Alert variant="destructive" className="max-w-md">
-                <ShieldAlert className="h-4 w-4" />
-                <AlertTitle>Akses Ditolak</AlertTitle>
-                <AlertDescription>
-                  Anda tidak memiliki izin untuk mengakses halaman ini. 
-                  Jika Anda yakin ini adalah kesalahan, coba logout dan login kembali atau hubungi administrator.
-                </AlertDescription>
-            </Alert>
-            <Button onClick={() => router.push(user ? '/' : '/login')} className="mt-6">
-              {user ? 'Kembali ke Beranda' : 'Ke Halaman Login'}
-            </Button>
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="ml-4 text-lg text-muted-foreground">Mempersiapkan halaman...</p>
         </div>
      );
   }
   
+  // Pengguna terotentikasi dan adalah admin. Render dasbor.
   const adminName = user.displayName || user.email;
 
 
