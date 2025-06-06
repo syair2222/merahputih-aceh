@@ -8,7 +8,7 @@ import { DollarSign, FileText, MessageSquare, UserCircle, CheckCircle, AlertCirc
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react"; // Added React import
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { MemberRegistrationData } from "@/types";
@@ -34,46 +34,49 @@ export default function MemberDashboardPage() {
           if (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas') {
             router.push('/admin/dashboard');
           } else {
+            // For any other role not member or admin, redirect to home or a more appropriate page
             router.push('/');
           }
-          return; // Important: stop further execution in this effect if redirecting
+          // No need to fetch member data if not a member
+          setMemberLoading(false); 
+          return;
         }
 
-        // User is a 'member', proceed to fetch their specific data
-        setMemberLoading(true); // Ensure loading state is true before fetch
-        const fetchMemberData = async () => {
-          if (user.uid) { // Ensure UID exists
-            try {
-              const memberDocRef = doc(db, "members", user.uid);
-              const memberDocSnap = await getDoc(memberDocRef);
-              if (memberDocSnap.exists()) {
-                setMemberData(memberDocSnap.data() as MemberRegistrationData);
-              } else {
-                console.warn("Member data not found in Firestore for UID:", user.uid);
-                setMemberData(null); // Explicitly set to null if document not found
+        // User is a member, proceed to fetch member data
+        if (user.uid) {
+            setMemberLoading(true); // Start loading member data
+            const fetchMemberData = async () => {
+              try {
+                const memberDocRef = doc(db, "members", user.uid);
+                const memberDocSnap = await getDoc(memberDocRef);
+                if (memberDocSnap.exists()) {
+                  setMemberData(memberDocSnap.data() as MemberRegistrationData);
+                } else {
+                  console.warn("Member data not found in Firestore for UID:", user.uid);
+                  setMemberData(null); // Explicitly set to null if not found
+                }
+              } catch (err) {
+                console.error("Error fetching member data:", err);
+                setMemberData(null); // Set to null on error
+              } finally {
+                setMemberLoading(false); // Stop loading member data
               }
-            } catch (err) {
-              console.error("Error fetching member data:", err);
-              setMemberData(null); // Set to null on error to indicate failure
-            } finally {
-              setMemberLoading(false);
-            }
-          } else {
+            };
+            fetchMemberData();
+        } else {
             console.warn("User object present, but UID is missing for member data fetch.");
             setMemberData(null);
             setMemberLoading(false);
-          }
-        };
-        fetchMemberData();
-
+        }
       } else {
-        // No user after authLoading is false, redirect to login
+        // No user after auth loading, redirect to login
         router.push('/login');
+        setMemberLoading(false); // Ensure member loading stops
       }
     }
   }, [user, authLoading, router]);
 
-  // Primary loading state from AuthContext
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
@@ -83,10 +86,21 @@ export default function MemberDashboardPage() {
     );
   }
 
-  // If user is not loaded or not a member after authLoading is false,
-  // useEffect is handling redirection. Show a generic loader.
-  if (!user || user.role !== 'member') {
+  if (!user) {
+    // This case should ideally be handled by AppLayout or the useEffect above,
+    // but as a fallback during the brief period before redirect or if useEffect hasn't run.
     return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-lg text-muted-foreground">Mengalihkan ke halaman login...</p>
+      </div>
+    );
+  }
+
+  if (user.role !== 'member') {
+     // If user is logged in but not a member, useEffect will redirect.
+     // Show a generic loading/preparation message during this brief period.
+     return (
        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
            <Loader2 className="h-12 w-12 animate-spin text-primary" />
            <p className="ml-4 text-lg text-muted-foreground">Mempersiapkan halaman...</p>
@@ -94,16 +108,89 @@ export default function MemberDashboardPage() {
     );
   }
 
-  // At this point, user is authenticated, role is 'member', and authLoading is false.
   const memberName = user.displayName || user.email || "Anggota Koperasi";
 
-  // Prepare status card variables if memberData exists
-  let statusIcon, statusColorClass, statusText, registrationDateFormatted, adminCommentsMessage, pendingMessage, approvedMessage;
+  // Welcome section is defined early, to be used even if memberData is loading/failed
+  const welcomeSection = (
+    <>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+      </div>
+      <Alert variant="default" className="shadow">
+        <UserCircle className="h-5 w-5 text-primary" />
+        <AlertTitle className="font-semibold text-lg text-accent">Selamat Datang, {memberName}!</AlertTitle>
+        <AlertDescription>
+          {memberLoading
+            ? "Kami sedang menyiapkan detail keanggotaan Anda. Mohon tunggu sebentar..."
+            : memberData
+              ? "Berikut adalah ringkasan informasi dan layanan untuk Anda."
+              : "Terjadi kesalahan saat memuat detail akun Anda dari server." 
+          }
+        </AlertDescription>
+      </Alert>
+    </>
+  );
+
+  // If member-specific data is still loading, show welcome + loader for member data
+  if (memberLoading && user.role === 'member') { // Check role again to be safe
+    return (
+      <div className="space-y-8">
+        {welcomeSection}
+        <div className="flex flex-col items-center justify-center py-10 space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Memuat detail keanggotaan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If member loading is done, user is a member, but memberData is still null (error case)
+  if (!memberData && !memberLoading && user.role === 'member') {
+    return (
+      <div className="space-y-8">
+        {welcomeSection}
+        <Alert variant="destructive" className="shadow-lg">
+            <ShieldAlert className="h-5 w-5" />
+            <AlertTitle className="font-semibold text-xl">Terjadi Kesalahan Server</AlertTitle>
+            <AlertDescription>
+                Saat ini kami mengalami kendala dalam mengambil data keanggotaan Anda. Tim kami sedang berupaya memperbaikinya. Mohon coba beberapa saat lagi atau hubungi dukungan. Fitur ini akan segera berfungsi kembali.
+            </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // At this point, user is a member, authLoading is false, memberLoading is false, and memberData should exist.
+  // If memberData is somehow still null here, it means an unexpected state, but the !memberData check above should have caught it.
+  // We proceed assuming memberData is available.
+
+  let statusIcon: React.ReactNode = null;
+  let statusColorClass: string = "";
+  let statusText: string = "";
+  let registrationDateFormatted: string = 'Tidak diketahui';
+  let adminCommentsMessage: React.ReactNode = null;
+  let pendingMessage: string | null = null;
+  let approvedMessage: string | null = null;
+
   if (memberData) {
     const memberStatus = memberData.status || 'Tidak Diketahui';
-    registrationDateFormatted = memberData.registrationTimestamp ?
-      new Date((memberData.registrationTimestamp as any).seconds * 1000).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) :
-      'Tidak diketahui';
+
+    try {
+        if (memberData.registrationTimestamp) {
+            let dateValue = (memberData.registrationTimestamp as any).seconds ? 
+                            new Date((memberData.registrationTimestamp as any).seconds * 1000) :
+                            new Date(memberData.registrationTimestamp as any);
+
+            if (!isNaN(dateValue.getTime())) {
+                registrationDateFormatted = dateValue.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+            } else {
+                console.warn("Invalid or unparseable registrationTimestamp:", memberData.registrationTimestamp);
+            }
+        }
+    } catch (e) {
+        console.error("Error formatting registrationDate:", e);
+    }
+
 
     switch (memberStatus) {
       case 'approved':
@@ -141,95 +228,60 @@ export default function MemberDashboardPage() {
     }
   }
 
-  return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
-      </div>
+  // The main return for a successfully loaded member dashboard
+  return <div className="space-y-8">
+      {welcomeSection}
 
-      <Alert variant="default" className="shadow">
-        <UserCircle className="h-5 w-5 text-primary" />
-        <AlertTitle className="font-semibold text-lg text-accent">Selamat Datang, {memberName}!</AlertTitle>
-        <AlertDescription>
-          {memberLoading
-            ? "Kami sedang menyiapkan detail keanggotaan Anda. Mohon tunggu sebentar..."
-            : memberData
-              ? "Berikut adalah ringkasan informasi dan layanan untuk Anda."
-              : "Terjadi kesalahan saat memuat detail akun Anda dari server."
-          }
-        </AlertDescription>
-      </Alert>
-
-      {memberLoading && (
-        <div className="flex flex-col items-center justify-center py-10 space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground">Memuat detail keanggotaan...</p>
-        </div>
+      {/* Status Keanggotaan Card */}
+      {memberData && ( // Only render if memberData is available
+        <Card className="shadow-lg border">
+          <CardHeader>
+            <CardTitle className="text-xl font-headline text-accent">Status Keanggotaan Anda</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className={`flex items-center p-3 rounded-md border ${statusColorClass}`}>
+              {statusIcon}
+              <p className="ml-2 font-semibold">{statusText}</p>
+            </div>
+            <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
+            {adminCommentsMessage}
+            {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
+            {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
+          </CardContent>
+        </Card>
       )}
 
-      {!memberLoading && !memberData && (
-        <Alert variant="destructive" className="shadow-lg">
-            <ShieldAlert className="h-5 w-5" />
-            <AlertTitle className="font-semibold text-xl">Terjadi Kesalahan</AlertTitle>
-            <AlertDescription>
-                Saat ini kami mengalami kendala dalam mengambil data keanggotaan Anda dari server. Tim kami sedang berupaya memperbaikinya. Mohon coba beberapa saat lagi atau hubungi dukungan.
-            </AlertDescription>
-        </Alert>
-      )}
-
-      {!memberLoading && memberData && (
+      {/* Quick Actions & Notifications - Only if member is approved and data exists */}
+      {memberData && memberData.status === 'approved' && (
         <>
-          {/* Status Keanggotaan Card */}
           <Card className="shadow-lg border">
             <CardHeader>
-              <CardTitle className="text-xl font-headline text-accent">Status Keanggotaan Anda</CardTitle>
+              <CardTitle className="text-xl font-headline text-accent">Menu Anggota</CardTitle>
+              <CardDescription>Akses cepat ke layanan dan informasi koperasi.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className={`flex items-center p-3 rounded-md border ${statusColorClass}`}>
-                {statusIcon}
-                <p className="ml-2 font-semibold">{statusText}</p>
-              </div>
-              <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
-              {adminCommentsMessage}
-              {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
-              {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {quickActionsMember.map((action) => (
+                <Button key={action.label} variant="outline" className="w-full justify-start p-4 h-auto text-left border-primary/30 hover:bg-primary/10" asChild>
+                  <Link href={action.href}>
+                    <action.icon className="h-6 w-6 mr-3 text-primary" />
+                    <span className="flex flex-col">
+                      <span className="font-semibold">{action.label}</span>
+                    </span>
+                  </Link>
+                </Button>
+              ))}
             </CardContent>
           </Card>
 
-          {/* Quick Actions & Notifications (Only if member is approved) */}
-          {memberData.status === 'approved' && (
-            <>
-              <Card className="shadow-lg border">
-                <CardHeader>
-                  <CardTitle className="text-xl font-headline text-accent">Menu Anggota</CardTitle>
-                  <CardDescription>Akses cepat ke layanan dan informasi koperasi.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {quickActionsMember.map((action) => (
-                    <Button key={action.label} variant="outline" className="w-full justify-start p-4 h-auto text-left border-primary/30 hover:bg-primary/10" asChild>
-                      <Link href={action.href}>
-                        <action.icon className="h-6 w-6 mr-3 text-primary" />
-                        <span className="flex flex-col">
-                          <span className="font-semibold">{action.label}</span>
-                        </span>
-                      </Link>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border">
-                <CardHeader>
-                  <CardTitle className="text-xl font-headline text-accent">Notifikasi & Aktivitas Terkini</CardTitle>
-                </Header>
-                <CardContent>
-                  <p className="text-muted-foreground">Belum ada notifikasi atau aktivitas terbaru.</p>
-                </CardContent>
-              </Card>
-            </>
-          )}
+          <Card className="shadow-lg border">
+            <CardHeader>
+              <CardTitle className="text-xl font-headline text-accent">Notifikasi & Aktivitas Terkini</CardTitle>
+            </Header>
+            <CardContent>
+              <p className="text-muted-foreground">Belum ada notifikasi atau aktivitas terbaru.</p>
+            </CardContent>
+          </Card>
         </>
       )}
-    </div>
-  );
+    </div>;
 }
