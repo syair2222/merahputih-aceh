@@ -65,11 +65,12 @@ export interface Agreement {
 export interface MemberRegistrationData extends PersonalData, ResidentialStatus, MembershipChoice, FinancialCommitment, DocumentAttachments, Agreement {
   userId?: string; // Link to Firebase Auth UID
   username: string; // For login
-  registrationTimestamp?: string; // ISO string, server-generated
+  registrationTimestamp?: any; // Firestore Timestamp or string (ISO)
   ipAddress?: string; // Optional, server-generated
   status: 'pending' | 'approved' | 'rejected' | 'verified'; // 'verified' could be post-OTP
   adminComments?: string;
   otpVerified?: boolean; // For OTP verification status
+  memberIdNumber?: string; // Cooperative member ID, generated after approval
 }
 
 
@@ -90,23 +91,69 @@ export interface AnnouncementComment {
   comment: string;
   timestamp: string; // ISO string
   aiAssistedResponse?: string;
-  adminResponse?: string; 
+  adminResponse?: string;
 }
 
 // UserProfile is in auth-context.ts, can be moved here if needed widely
 
-export interface FacilityApplication {
-  id: string;
-  memberId: string;
-  memberName: string;
-  applicationDate: string; // ISO string
-  facilityType: string; // e.g., 'Pinjaman Modal Usaha', 'Penyaluran Hasil Tani'
-  amountOrDetails: string; // Amount for loan, or details for other facilities
+export const FacilityTypeOptions = [
+  'Pinjaman Usaha',
+  'Pembelian Barang',
+  'Pelatihan',
+  'Sewa Alat',
+  'Bahan Produksi',
+  'Lainnya'
+] as const;
+export type FacilityType = typeof FacilityTypeOptions[number];
+
+export const MemberBusinessAreaOptions = [
+  'Pertanian',
+  'Perdagangan',
+  'Peternakan',
+  'Perikanan',
+  'UMKM (Usaha Mikro Kecil Menengah)',
+  'Jasa',
+  'Lainnya'
+] as const;
+export type MemberBusinessArea = typeof MemberBusinessAreaOptions[number];
+
+export interface FacilityApplicationData {
+  id?: string; // Firestore document ID
+  userId: string; // Firebase Auth UID of the member
+  memberFullName: string;
+  memberIdNumber: string; // Cooperative member ID, should exist if applying
+  memberAddress: string;
+
+  facilityType: FacilityType;
+  specificProductName?: string;
+  quantityOrAmount: string;
   purpose: string;
-  status: 'pending' | 'approved' | 'rejected';
-  adminComments?: string;
-  approvalDate?: string; // ISO string
+  memberBusinessArea: MemberBusinessArea;
+  otherMemberBusinessArea?: string; // If memberBusinessArea is 'Lainnya'
+  estimatedUsageOrRepaymentTime?: string;
+
+  hasAppliedBefore: 'Ya' | 'Tidak';
+  previousApplicationDetails?: string;
+
+  // For file uploads, store an array of objects with name and URL
+  // This matches how we might structure it in Firestore if using Cloudinary URLs
+  supportingDocuments?: Array<{ name: string; url: string; type: string; size: number }>;
+  // These are for the form handling with FileList
+  proposalFile?: FileList;
+  productPhotoFile?: FileList;
+  statementLetterFile?: FileList;
+  otherSupportFile?: FileList;
+
+  additionalNotes?: string;
+
+  applicationDate: any; // Firestore Timestamp
+  status: 'pending_review' | 'pending_approval' | 'approved' | 'rejected' | 'completed' | 'cancelled_by_member' | 'requires_correction';
+  adminComments?: string; // General comments or reasons for rejection/correction
+  decisionMaker?: string; // Role or name of admin who decided
+  decisionDate?: any; // Firestore Timestamp
+  lastUpdated?: any; // Firestore Timestamp
 }
+
 
 export interface FacilityReport {
   id: string;
@@ -124,5 +171,5 @@ export interface UserDocument {
   displayName: string | null;
   role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member';
   photoURL?: string | null;
-  // other app-specific user data
+  memberIdNumber?: string; // For members
 }

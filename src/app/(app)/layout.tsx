@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import AppFooter from '@/components/layout/app-footer';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send } from 'lucide-react'; // Added History, Send
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -37,13 +37,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // This effect handles the redirect if user is not authenticated AFTER loading is complete.
     if (!loading && !user) {
-      // AppLayout is for the (app) group, which is protected.
-      // If we're in AppLayout and !user, it's always a redirect to login.
       router.push('/login');
     }
-  }, [user, loading, router]); // Removed pathname as it's not strictly needed for this redirect logic
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -54,10 +51,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // If auth is resolved (not loading) but there's no user,
-  // we should not render the main layout/children.
-  // The useEffect above will handle the redirect.
-  // Display a message or a minimal loader while redirecting.
   if (!user) {
     return (
          <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -73,8 +66,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // If we reach here, user is authenticated (!loading && user is not null).
-  // Now, render the actual layout.
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
   const isMember = user?.role === 'member';
 
@@ -87,7 +78,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/dashboard', label: 'Dasbor Admin', icon: LayoutDashboard },
     { href: '/admin/members', label: 'Manajemen Anggota', icon: UserCircle },
     { href: '/admin/applications', label: 'Verifikasi Pendaftaran', icon: FileText },
-    { href: '/admin/facilities', label: 'Manajemen Fasilitas', icon: DollarSign },
+    { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign }, // Renamed for clarity
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
     ...commonMenuItems,
@@ -95,14 +86,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
-    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: DollarSign },
+    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, // Icon changed
+    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, // New Item
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
     ...commonMenuItems,
   ];
 
-  let currentMenuItems = commonMenuItems;
-  if (user) { // Ensure user exists before checking role
+  let currentMenuItems = commonMenuItems; // Default for prospective_member or unknown roles within (app)
+  if (user) {
     if (isAdmin) {
       currentMenuItems = adminMenuItems;
     } else if (isMember) {
@@ -129,7 +121,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/' && (item.href.endsWith('dashboard') ? pathname === item.href : true) )}
+                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/' && (item.href.endsWith('dashboard') ? pathname === item.href : !item.href.endsWith('dashboard') && pathname.startsWith(item.href)  ) )}
                   tooltip={{children: item.label, className: "bg-primary text-primary-foreground"}}
                 >
                   <Link href={item.href} >
@@ -160,8 +152,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="p-4 sm:p-6 md:p-8">
          {children}
         </div>
-        <AppFooter />
+        {/* Footer removed from here, as RootLayout has one */}
       </SidebarInset>
     </SidebarProvider>
   );
 }
+
