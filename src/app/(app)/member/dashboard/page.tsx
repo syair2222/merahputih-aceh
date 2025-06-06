@@ -86,7 +86,7 @@ export default function MemberDashboardPage() {
         if (data.registrationTimestamp && typeof (data.registrationTimestamp as any).seconds === 'number') {
             registrationDate = new Date((data.registrationTimestamp as any).seconds * 1000);
         }
-        setMemberData({ ...data, registrationTimestamp: registrationDate, adminRating: data.adminRating });
+        setMemberData({ ...data, registrationTimestamp: registrationDate, adminRating: data.adminRating, recommendationsGivenCount: data.recommendationsGivenCount });
       } else {
         console.warn("Data anggota tidak ditemukan di Firestore untuk UID:", user.uid);
         setMemberData(null);
@@ -389,6 +389,17 @@ export default function MemberDashboardPage() {
                             <p className="text-xs text-muted-foreground mt-1">Ini adalah penilaian umum dari koperasi. Jaga terus kepercayaan dan partisipasi Anda!</p>
                         </div>
                     )}
+                     {(memberData.recommendationsGivenCount !== undefined && memberData.recommendationsGivenCount >= 0) && (
+                      <div className="pt-2">
+                        <p className="font-semibold text-sm flex items-center">
+                          <Handshake className="mr-2 h-4 w-4 text-primary" /> Rekomendasi Diberikan:
+                        </p>
+                        <p className="text-md">{memberData.recommendationsGivenCount} kali</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Terima kasih atas kontribusi Anda dalam memberikan rekomendasi!
+                        </p>
+                      </div>
+                    )}
                     {adminCommentsMessage}
                     {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
                     {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
@@ -573,3 +584,4 @@ export default function MemberDashboardPage() {
     </div>
   );
 }
+
