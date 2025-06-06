@@ -36,9 +36,6 @@ export default function Home() {
   const [surveySubmitterName, setSurveySubmitterName] = useState('');
   const [isSubmittingSurvey, setIsSubmittingSurvey] = useState(false);
 
-  const cooperativeLogoUrl = "https://res.cloudinary.com/dj0g9plk8/image/upload/v1716276900/koperasi_indonesia_logo.png";
-
-
   useEffect(() => {
     const fetchAnnouncements = async () => {
       setAnnouncementsLoading(true);
@@ -118,23 +115,23 @@ export default function Home() {
       <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden bg-primary/5">
         {/* Koperasi Indonesia Logo - Top Right */}
         <Image
-            src={cooperativeLogoUrl}
-            alt="Logo Koperasi Indonesia Tambahan"
+            src="/images/koperasi_merah_putih.png" // UPDATED SRC
+            alt="Logo Koperasi Merah Putih Tambahan" // UPDATED ALT
             width={100}
             height={100}
             className="absolute top-4 right-4 z-20 hidden md:block rounded-md shadow-lg"
-            data-ai-hint="indonesia cooperative"
+            data-ai-hint="koperasi merah putih" // UPDATED HINT
         />
         
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
-            src="/images/logo_koperasi_utama.png" // PATH LOKAL BARU
+            src="/images/logo_koperasi_utama.png"
             alt="Logo Koperasi Merah Putih Sejahtera Utama" 
-            width={100} // Sesuaikan dengan ukuran asli logo Anda
-            height={100} // Sesuaikan dengan ukuran asli logo Anda
+            width={100} 
+            height={100} 
             className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32 object-cover" 
-            data-ai-hint="logo koperasi utama" // DATA AI HINT BARU
+            data-ai-hint="logo koperasi utama"
           />
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-primary drop-shadow-md mb-2 sm:mb-4">{cooperativeInfo.name}</h1>
           <p className="text-base sm:text-lg text-primary/90 mb-1 sm:mb-2">{cooperativeInfo.location}</p>
