@@ -6,11 +6,16 @@ import { useAuth } from '@/hooks/use-auth';
 import { Home, UserPlus, LogIn, LayoutDashboard, LogOut, Info, Menu, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 
 export default function AppNavbar() {
   const { user, logout, loading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false); // State for client-side rendering
+
+  useEffect(() => {
+    setIsClient(true); // Set to true after component mounts on client
+  }, []);
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "AU"; // Anonymous User
@@ -68,10 +73,17 @@ export default function AppNavbar() {
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <Link href="/" legacyBehavior passHref>
           <a className="text-primary-foreground hover:text-accent transition-colors">
-            <div className="flex flex-col leading-tight">
-              <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
-              <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
-            </div>
+            {isClient ? (
+              <div className="flex flex-col leading-tight">
+                <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
+                <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
+              </div>
+            ) : (
+              // Render null initially on the client to prevent mismatch.
+              // The server will render its version, and the client will initially render this simple content.
+              // After hydration, `isClient` becomes true, and the correct content is rendered on the client.
+              null
+            )}
           </a>
         </Link>
         
