@@ -8,8 +8,8 @@ import type { ReactNode } from 'react';
 import React, { createContext, useEffect, useState } from 'react';
 
 export interface UserProfile extends FirebaseUser {
-  role?: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member';
-  status?: 'pending' | 'approved' | 'rejected' | 'verified';
+  role?: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member' | 'bank_partner_admin' | 'related_agency_admin';
+  status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
   memberIdNumber?: string;
 }
 
@@ -69,7 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!currentRole || typeof currentRole !== 'string' || currentRole.trim() === '') {
               currentRole = 'prospective_member'; // Default if role is missing, not a string, or empty
             }
-            userProfileData.role = currentRole as UserProfile['role'];
+            // Allow existing bank_partner_admin or related_agency_admin roles from Firestore
+            if (currentRole === 'bank_partner_admin' || currentRole === 'related_agency_admin') {
+                userProfileData.role = currentRole;
+            } else {
+                userProfileData.role = currentRole as Exclude<UserProfile['role'], 'bank_partner_admin' | 'related_agency_admin'>;
+            }
             
             let currentStatus = userData.status;
             if (!currentStatus || typeof currentStatus !== 'string' || currentStatus.trim() === '') {

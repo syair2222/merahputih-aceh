@@ -203,7 +203,7 @@ export interface UserDocument {
   uid: string;
   email: string | null;
   displayName: string | null;
-  role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member';
+  role: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member' | 'bank_partner_admin' | 'related_agency_admin';
   status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
   photoURL?: string | null;
   memberIdNumber?: string;
