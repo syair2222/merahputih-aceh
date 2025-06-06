@@ -1,8 +1,8 @@
 
-'use client'; // Added this directive
+'use client'; 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Info as InfoIcon, Printer } from "lucide-react"; // Added Printer
+import { CheckCircle, Info as InfoIcon, Printer } from "lucide-react"; 
 import Image from "next/image";
 import { cooperativeInfo } from "@/lib/site-data";
 import Link from "next/link";
@@ -11,9 +11,63 @@ import { Button } from "@/components/ui/button";
 export default function CooperativeInfoPage() {
   // cooperativeInfo is now imported from @/lib/site-data
 
-  const handlePrint = () => {
+  const handlePrintPage = () => {
     window.print();
   };
+
+  const handlePrintDescription = () => {
+    const printContents = document.getElementById('app-description')?.innerHTML; // Get innerHTML of the card
+    if (printContents) {
+      const printWindow = window.open('', '_blank', 'height=600,width=800');
+      printWindow?.document.write(`
+        <html>
+          <head>
+            <title>Deskripsi Aplikasi Koperasi Digital</title>
+            <style>
+              body { 
+                font-family: '${getComputedStyle(document.documentElement).getPropertyValue('--font-alegreya').trim() || 'serif'}', serif; 
+                margin: 20px; 
+                color: #333;
+              }
+              h1, h2, h3, h4, h5, h6 { 
+                font-family: '${getComputedStyle(document.documentElement).getPropertyValue('--font-belleza').trim() || 'sans-serif'}', sans-serif; 
+                color: #D9534F; /* Approx primary color */
+              }
+              h1 { font-size: 2em; margin-bottom: 0.5em;}
+              h2 { font-size: 1.75em; margin-bottom: 0.4em;}
+              h3 { font-size: 1.5em; margin-bottom: 0.3em;}
+              h4 { font-size: 1.25em; margin-bottom: 0.2em;}
+              ul, ol { padding-left: 20px; margin-bottom: 1em; }
+              li { margin-bottom: 0.5em; }
+              p { line-height: 1.6; margin-bottom: 1em; }
+              .card-title { font-size: 1.8em; color: #F4A261; /* Approx Accent */ margin-bottom: 0.5rem;}
+              .card-description { font-size: 0.9em; color: #777; margin-bottom: 1rem;}
+              /* Minimal card styling for print */
+              .card-content-print-wrapper { border: 1px solid #eee; padding: 15px; } 
+              /* Hide the print button itself in the printout */
+              .print-button-container { display: none; } 
+            </style>
+          </head>
+          <body>
+            <div class="card-content-print-wrapper">
+              ${printContents}
+            </div>
+          </body>
+        </html>
+      `);
+      // Remove the print button from the cloned content before printing
+      const buttonInPrintWindow = printWindow?.document.querySelector('.print-button-container');
+      buttonInPrintWindow?.remove();
+      
+      printWindow?.document.close();
+      printWindow?.focus();
+      setTimeout(() => {
+          printWindow?.print();
+          printWindow?.close();
+      }, 250);
+    }
+  };
+
 
   return (
     <div className="space-y-8">
@@ -68,10 +122,19 @@ export default function CooperativeInfoPage() {
 
       <Card className="shadow-lg" id="app-description">
         <CardHeader>
-          <CardTitle className="text-2xl font-headline text-accent flex items-center">
-            <InfoIcon className="mr-3 h-7 w-7" /> Deskripsi Aplikasi Koperasi Digital
-          </CardTitle>
-          <CardDescription>Inovasi Digital untuk Kesejahteraan Bersama.</CardDescription>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-2xl font-headline text-accent flex items-center">
+                <InfoIcon className="mr-3 h-7 w-7" /> Deskripsi Aplikasi Koperasi Digital
+              </CardTitle>
+              <CardDescription>Inovasi Digital untuk Kesejahteraan Bersama.</CardDescription>
+            </div>
+            <div className="print-button-container no-print"> {/* Added no-print here */}
+              <Button onClick={handlePrintDescription} variant="outline" size="sm">
+                <Printer className="mr-2 h-4 w-4" /> Cetak Deskripsi Ini
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6 text-foreground/90">
           <p>
@@ -140,21 +203,21 @@ export default function CooperativeInfoPage() {
               <div>
                 <h4 className="text-lg font-medium mb-1">Manfaat untuk Bank Mitra:</h4>
                 <ul className="list-disc list-inside space-y-1 pl-4">
-                  <li><strong>Akses Selektif ke Prospek:</strong> Menerima informasi pengajuan fasilitas dari anggota koperasi yang secara spesifik memilih bank sebagai tujuan pengajuan.</li>
+                  <li><strong>Akses Selektif ke Prospek:</strong> Menerima informasi pengajuan fasilitas dari anggota koperasi yang secara spesifik memilih bank sebagai tujuan pengajuan. Ini memfilter dan menyajikan prospek yang lebih relevan.</li>
                   <li><strong>Efisiensi Proses Awal:</strong> Mengurangi waktu dan sumber daya untuk skrining awal karena data dan dokumen pendukung sudah tersedia secara digital.</li>
-                  <li><strong>Informasi Pendukung:</strong> Dapat melihat detail pengajuan dan profil pemohon untuk analisis kelayakan yang lebih baik.</li>
-                  <li><strong>Potensi Kerjasama Strategis:</strong> Membuka peluang kerjasama yang lebih erat dengan koperasi.</li>
-                  <li><strong>Pencetakan Dokumen:</strong> Admin bank dapat mencetak detail pengajuan yang relevan.</li>
+                  <li><strong>Informasi Pendukung:</strong> Dapat melihat detail pengajuan, profil pemohon (dengan persetujuan), dan histori (jika relevan dan diizinkan) untuk analisis kredit atau kelayakan yang lebih baik.</li>
+                  <li><strong>Potensi Kerjasama Strategis:</strong> Membuka peluang kerjasama yang lebih erat dengan koperasi untuk penyaluran kredit atau produk perbankan lainnya kepada segmen UMKM yang terorganisir.</li>
+                  <li><strong>Pencetakan Dokumen:</strong> Admin bank dapat mencetak detail pengajuan yang relevan untuk proses internal mereka.</li>
                 </ul>
               </div>
               <div>
                 <h4 className="text-lg font-medium mb-1">Manfaat untuk Dinas & Instansi Pemerintah Terkait:</h4>
                 <ul className="list-disc list-inside space-y-1 pl-4">
-                  <li><strong>Monitoring & Pembinaan:</strong> Mendapatkan gambaran umum perkembangan koperasi dan aktivitas ekonomi anggotanya.</li>
-                  <li><strong>Penyaluran Program Tepat Sasaran:</strong> Aplikasi dapat menjadi saluran untuk mengidentifikasi anggota yang relevan untuk program pemerintah.</li>
-                  <li><strong>Akses Data Terstruktur:</strong> Memudahkan perolehan data untuk laporan dan analisis kebijakan.</li>
-                  <li><strong>Transparansi & Akuntabilitas:</strong> Mendukung transparansi dalam penyaluran bantuan.</li>
-                  <li><strong>Pencetakan Dokumen:</strong> Admin dinas dapat mencetak detail pengajuan yang relevan.</li>
+                  <li><strong>Monitoring & Pembinaan:</strong> Mendapatkan gambaran umum perkembangan koperasi dan aktivitas ekonomi anggotanya (data agregat dan anonim, atau data spesifik jika pengajuan ditujukan ke dinas).</li>
+                  <li><strong>Penyaluran Program Tepat Sasaran:</strong> Jika ada program bantuan atau pembinaan dari dinas, aplikasi dapat menjadi saluran untuk mengidentifikasi anggota atau kelompok usaha yang potensial dan relevan berdasarkan pengajuan yang ditujukan ke dinas.</li>
+                  <li><strong>Akses Data Terstruktur:</strong> Memudahkan perolehan data untuk laporan, analisis kebijakan, dan evaluasi program pemerintah terkait pemberdayaan ekonomi masyarakat dan koperasi.</li>
+                  <li><strong>Transparansi & Akuntabilitas:</strong> Mendukung transparansi dalam penyaluran bantuan atau fasilitas yang melibatkan pihak pemerintah.</li>
+                  <li><strong>Pencetakan Dokumen:</strong> Admin dinas dapat mencetak detail pengajuan yang relevan untuk proses internal mereka.</li>
                 </ul>
               </div>
             </div>
@@ -192,7 +255,7 @@ export default function CooperativeInfoPage() {
             </pre>
           </div>
           <div className="mt-4 text-center no-print">
-            <Button onClick={handlePrint} variant="outline">
+            <Button onClick={handlePrintPage} variant="outline">
               <Printer className="mr-2 h-4 w-4" /> Cetak Halaman Info Koperasi
             </Button>
             <p className="text-xs block text-muted-foreground mt-1">
