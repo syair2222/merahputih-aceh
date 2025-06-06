@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, ShieldAlert, Loader2, UserCircle, ThumbsUp, ThumbsDown, MessageSquare, Send, CheckCircle, XCircle, Info } from 'lucide-react';
 import type { FacilityApplicationData, RequestedRecommendation } from '@/types';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment } from 'firebase/firestore'; // Added increment
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 
@@ -132,9 +132,14 @@ export default function MemberProvideRecommendationPage() {
       
       await updateDoc(appDocRef, updatePayload);
       
+      // Increment recommendationsGivenCount for the recommender
+      const recommenderMemberDocRef = doc(db, 'members', user.uid);
+      await updateDoc(recommenderMemberDocRef, {
+        recommendationsGivenCount: increment(1)
+      });
+
       toast({ title: "Rekomendasi Terkirim", description: `Anda telah ${decision === 'approved' ? 'menyetujui' : 'menolak'} rekomendasi ini.` });
-      setUserRecommendationStatus(decision); // Update local status to reflect change
-      // fetchApplicationAndVerify(); // Could re-fetch to get server timestamp for decisionDate, but local update is faster for UI
+      setUserRecommendationStatus(decision); 
     } catch (err) {
       console.error("Error submitting recommendation:", err);
       toast({ title: "Gagal Mengirim Rekomendasi", description: "Terjadi kesalahan.", variant: "destructive" });
