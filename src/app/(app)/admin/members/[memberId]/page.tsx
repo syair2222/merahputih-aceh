@@ -11,6 +11,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import type { MemberRegistrationData } from '@/types';
+import { cn } from '@/lib/utils'; // Added import for cn
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
