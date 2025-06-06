@@ -150,11 +150,9 @@ export default function MemberFacilityApplicationDetailPage() {
         await updateDoc(appDocRef, {
             status: 'cancelled_by_member',
             lastUpdated: serverTimestamp(),
-            // Optional: remove pending recommendations if cancelled
-            // requestedRecommendations: arrayRemove(...(application.requestedRecommendations?.filter(r => r.status === 'pending') || []))
         });
         toast({ title: "Pengajuan Dibatalkan", description: "Pengajuan fasilitas Anda telah berhasil dibatalkan." });
-        fetchApplication(); // Refresh data
+        fetchApplication(); 
     } catch (error) {
         console.error("Error cancelling application:", error);
         toast({ title: "Gagal Membatalkan", description: "Terjadi kesalahan saat membatalkan pengajuan.", variant: "destructive" });
@@ -299,8 +297,12 @@ export default function MemberFacilityApplicationDetailPage() {
                                     Direspon pada: {rec.decisionDate instanceof Date ? format(rec.decisionDate, 'PPP p', { locale: localeID }) : 'N/A'}
                                 </p>
                             )}
-                             {rec.status === 'rejected' && rec.comment && (
-                                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">Komentar Perekomen: {rec.comment}</p>
+                            {rec.comment && (
+                                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+                                    Komentar Perekomen: {rec.comment}
+                                    {rec.status === 'approved' && <span className="text-xs text-green-600"> (Menyetujui)</span>}
+                                    {rec.status === 'rejected' && <span className="text-xs text-red-600"> (Menolak)</span>}
+                                </p>
                             )}
                         </div>
                     ))}
@@ -353,5 +355,7 @@ export default function MemberFacilityApplicationDetailPage() {
     </div>
   );
 }
+
+    
 
     
