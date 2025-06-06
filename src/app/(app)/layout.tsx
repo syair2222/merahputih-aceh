@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import AppFooter from '@/components/layout/app-footer';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare } from 'lucide-react'; // Added MessageSquare
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
   const isMember = user?.role === 'member';
 
+  // Common items are now only for admin or as a base
   const commonMenuItems = [
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
@@ -88,21 +89,30 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
-    // Direct link to apply page is less prominent now, modal on dashboard is primary
-    // { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, 
+    { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare },
+    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, 
     { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, 
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
-    // { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare }, // Placeholder for future chat/messages page
-    ...commonMenuItems,
+    // Explicitly add Profile and Settings here for members to control order
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
-  let currentMenuItems = commonMenuItems; 
+  let currentMenuItems = []; 
   if (user) {
     if (isAdmin) {
       currentMenuItems = adminMenuItems;
     } else if (isMember) {
       currentMenuItems = memberMenuItems;
+    } else {
+      // Fallback for prospective_member or other roles - can redirect or show limited menu
+      // For now, redirecting to home is handled by individual pages if role not matched
+      // Or show a very basic menu if needed:
+      currentMenuItems = [
+        { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+        { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
+      ];
     }
   }
 
@@ -160,5 +170,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
-    
