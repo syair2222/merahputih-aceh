@@ -151,7 +151,7 @@ export default function MemberFacilityHistoryPage() {
                   }
 
                   return (
-                    <TableRow key={app.id} id={app.id}> {/* Added id to TableRow for potential deep linking */}
+                    <TableRow key={app.id} id={app.id}>
                       <TableCell className="font-medium">{app.facilityType}{app.facilityType === 'Lainnya' && app.specificProductName ? ` (${app.specificProductName})` : ''}</TableCell>
                       <TableCell className="hidden md:table-cell">{app.quantityOrAmount}</TableCell>
                       <TableCell className="hidden lg:table-cell">
@@ -193,5 +193,3 @@ export default function MemberFacilityHistoryPage() {
     </div>
   );
 }
-
-    
