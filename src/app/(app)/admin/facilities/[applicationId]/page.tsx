@@ -11,13 +11,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info } from 'lucide-react'; // Changed ThumbsUp to Info
+import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star } from 'lucide-react';
 import type { FacilityApplicationData } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@/types'; 
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FormLabel } from '@/components/ui/form';
+import { cn } from '@/lib/utils';
 
 // Re-define statusDisplay if not exported from types
 const localStatusDisplay: Record<FacilityApplicationData['status'], string> = {
@@ -37,6 +38,30 @@ const DetailItem: React.FC<{ label: string; value?: string | React.ReactNode; fu
     {typeof value === 'string' ? <p className="text-md text-foreground whitespace-pre-wrap">{value || '-'}</p> : value || '-'}
   </div>
 );
+
+const RecommendationStars: React.FC<{ count: number }> = ({ count }) => {
+  let stars = 0;
+  if (count === 1) stars = 1;
+  else if (count >= 2 && count <= 3) stars = 2;
+  else if (count >= 4 && count <= 5) stars = 3;
+  else if (count >= 6 && count <= 7) stars = 4;
+  else if (count >= 8) stars = 5;
+
+  return (
+    <div className="flex items-center">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "h-5 w-5",
+            i < stars ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+          )}
+        />
+      ))}
+      <span className="ml-2 text-sm text-muted-foreground">({count} rekomendasi)</span>
+    </div>
+  );
+};
 
 export default function AdminFacilityApplicationDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -236,34 +261,36 @@ export default function AdminFacilityApplicationDetailPage() {
         </Card>
       )}
 
-      {/* Placeholder for Recommendations */}
       <Card>
         <CardHeader>
             <CardTitle className="text-xl font-headline text-accent flex items-center">
-                <Users className="mr-2 h-5 w-5" /> Informasi Rekomendasi Anggota (Placeholder)
+                <Users className="mr-2 h-5 w-5" /> Informasi Rekomendasi Anggota
             </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+             <DetailItem 
+                label="Kekuatan Rekomendasi Komunitas" 
+                value={<RecommendationStars count={application.recommendationCount || 0} />} 
+             />
             {application.requestedRecommendations && application.requestedRecommendations.length > 0 ? (
                 <>
-                    <DetailItem label="Jumlah Rekomendasi Diterima" value={application.recommendationCount?.toString() || '0'} />
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Anggota yang Diminta Rekomendasi:</p>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Anggota yang Diminta Rekomendasi:</p>
                     <ul className="list-disc pl-5 space-y-1">
                         {application.requestedRecommendations.map(rec => (
                             <li key={rec.memberId} className="text-sm">
-                                {rec.memberName} (ID: {rec.memberId.substring(0,6)}...) - Status: <Badge variant={rec.status === 'approved' ? 'default' : rec.status === 'rejected' ? 'destructive' : 'secondary'} className={rec.status === 'approved' ? 'bg-green-500 text-white' : ''}>{rec.status}</Badge>
+                                {rec.memberName} (ID: {rec.memberId.substring(0,6)}...) - Status: <Badge variant={rec.status === 'approved' ? 'default' : rec.status === 'rejected' ? 'destructive' : 'secondary'} className={rec.status === 'approved' ? 'bg-green-500 text-white' : rec.status === 'rejected' ? 'bg-red-500 text-white' : ''}>{rec.status}</Badge>
                             </li>
                         ))}
                     </ul>
                 </>
             ) : (
-                 <p className="text-muted-foreground">Tidak ada permintaan rekomendasi atau data rekomendasi yang terkait dengan pengajuan ini.</p>
+                 <p className="text-muted-foreground text-sm">Tidak ada permintaan rekomendasi atau data rekomendasi yang diterima untuk pengajuan ini.</p>
             )}
              <Alert variant="default" className="mt-4 bg-blue-50 border-blue-300 text-blue-700">
                 <Info className="h-5 w-5 text-blue-600" />
                 <AlertTitle className="font-semibold text-blue-800">Informasi Penilaian</AlertTitle>
                 <AlertDescription>
-                  Capai Rekomendasi terbanyak sebagai Cara kami menilai.
+                  Capai rekomendasi terbanyak sebagai salah satu cara kami menilai kelayakan dan kepercayaan. Rekomendasi dari anggota lain menjadi pertimbangan penting.
                 </AlertDescription>
             </Alert>
         </CardContent>
