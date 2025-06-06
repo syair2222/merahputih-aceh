@@ -71,7 +71,10 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   adminComments?: string;
   otpVerified?: boolean; // For OTP verification status
   memberIdNumber?: string; // Cooperative member ID, generated after approval
+  lastAdminActionBy?: string; // UID of admin performing the action
+  lastAdminActionByName?: string; // DisplayName of admin performing the action
   lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
+  adminRating?: number; // Rating 1-5 by admin
 }
 
 
@@ -189,3 +192,4 @@ export interface UserDocument {
   photoURL?: string | null;
   memberIdNumber?: string; // For members
 }
+

@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -18,9 +18,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label'; // Changed from FormLabel
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer } from 'lucide-react';
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={cn("mb-3", fullWidth ? "col-span-2" : "")}>
@@ -80,6 +81,8 @@ export default function MemberDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [adminComments, setAdminComments] = useState('');
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const [currentAdminRating, setCurrentAdminRating] = useState<number>(0);
+
 
   const fetchMemberData = useCallback(async () => {
     setPageLoading(true);
@@ -92,6 +95,7 @@ export default function MemberDetailPage() {
         const data = memberDocSnap.data() as MemberRegistrationData;
         setMemberData(data);
         setAdminComments(data.adminComments || ''); 
+        setCurrentAdminRating(data.adminRating || 0);
       } else {
         setError('Data anggota tidak ditemukan.');
       }
@@ -123,7 +127,7 @@ export default function MemberDetailPage() {
   };
 
   const handleAdminAction = async (newStatus: MemberRegistrationData['status'], newRole?: 'member' | 'prospective_member') => {
-    if (!memberData || !memberId) return;
+    if (!memberData || !memberId || !adminUser) return;
 
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminComments.trim()) {
       toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive" });
@@ -133,12 +137,14 @@ export default function MemberDetailPage() {
     setIsProcessingAction(true);
     try {
       const memberDocRef = doc(db, 'members', memberId);
-      const userDocRef = doc(db, 'users', memberId); // Assuming memberId is also the userId
+      const userDocRef = doc(db, 'users', memberId);
 
       const memberUpdateData: Partial<MemberRegistrationData> = {
         status: newStatus,
         adminComments: adminComments.trim(),
         lastAdminActionTimestamp: serverTimestamp(),
+        lastAdminActionBy: adminUser.uid,
+        lastAdminActionByName: adminUser.displayName || adminUser.email,
       };
 
       const userUpdateData: any = {
@@ -148,26 +154,46 @@ export default function MemberDetailPage() {
       if (newStatus === 'approved') {
         memberUpdateData.memberIdNumber = memberData.memberIdNumber || generateMemberIdNumber();
         if (newRole) userUpdateData.role = newRole;
-        userUpdateData.status = 'approved'; // explicit user status for approved members
-      } else if (newStatus === 'rejected' || newStatus === 'requires_correction') {
-        // No role change for user, just status
+        userUpdateData.status = 'approved'; 
+      } else if (newStatus === 'pending' || newStatus === 'verified'){ 
+         if (newRole) userUpdateData.role = newRole; 
       }
-      
-      if (newStatus === 'pending' || newStatus === 'verified'){ // if admin resets to pending/verified
-         if (newRole) userUpdateData.role = newRole; // e.g. prospective_member
-      }
-
 
       await updateDoc(memberDocRef, memberUpdateData);
       await updateDoc(userDocRef, userUpdateData);
 
       toast({ title: "Aksi Berhasil", description: `Status anggota telah diperbarui menjadi ${newStatus}.` });
-      fetchMemberData(); // Refresh data
+      fetchMemberData(); 
     } catch (err) {
       console.error("Error updating member status:", err);
       toast({ title: "Aksi Gagal", description: "Terjadi kesalahan saat memproses aksi.", variant: "destructive" });
     } finally {
       setIsProcessingAction(false);
+    }
+  };
+  
+  const handleSaveRating = async () => {
+    if (!memberData || !memberId || !adminUser) return;
+    if (currentAdminRating === 0) {
+        toast({title: "Pilih Rating", description: "Pilih rating antara 1 sampai 5.", variant: "destructive"});
+        return;
+    }
+    setIsProcessingAction(true);
+    try {
+        const memberDocRef = doc(db, 'members', memberId);
+        await updateDoc(memberDocRef, {
+            adminRating: currentAdminRating,
+            lastAdminActionTimestamp: serverTimestamp(),
+            lastAdminActionBy: adminUser.uid,
+            lastAdminActionByName: adminUser.displayName || adminUser.email,
+        });
+        toast({title: "Rating Disimpan", description: `Rating ${currentAdminRating} bintang berhasil disimpan untuk anggota ini.`});
+        fetchMemberData(); // Refresh data
+    } catch(err) {
+        console.error("Error saving admin rating:", err);
+        toast({title: "Gagal Simpan Rating", description: "Terjadi kesalahan.", variant: "destructive"});
+    } finally {
+        setIsProcessingAction(false);
     }
   };
 
@@ -230,30 +256,54 @@ export default function MemberDetailPage() {
   const birthDateFormatted = memberData.birthDate ?
     new Date(memberData.birthDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric'}) :
     'Tidak diketahui';
+    
+  const lastActionDateFormatted = memberData.lastAdminActionTimestamp ?
+    new Date((memberData.lastAdminActionTimestamp as any).seconds * 1000).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})
+    : null;
 
   const getStatusBadge = (status?: MemberRegistrationData['status']) => {
     if (!status) return <Badge variant="outline">Tidak Diketahui</Badge>;
+    let statusText = status;
     switch (status) {
-      case 'approved': return <Badge variant="default" className="bg-green-500 text-white">Disetujui</Badge>;
-      case 'pending': return <Badge variant="secondary" className="bg-yellow-500 text-white">Menunggu Persetujuan</Badge>;
-      case 'rejected': return <Badge variant="destructive">Ditolak</Badge>;
-      case 'verified': return <Badge variant="default" className="bg-blue-500 text-white">Terverifikasi</Badge>;
-      case 'requires_correction': return <Badge variant="default" className="bg-orange-500 text-white">Perlu Perbaikan</Badge>;
-      default: return <Badge variant="outline">{status}</Badge>;
+      case 'approved': statusText = "Disetujui"; break;
+      case 'pending': statusText = "Menunggu Persetujuan"; break;
+      case 'rejected': statusText = "Ditolak"; break;
+      case 'verified': statusText = "Terverifikasi"; break;
+      case 'requires_correction': statusText = "Perlu Perbaikan"; break;
     }
+    
+    let badgeVariant: "default" | "secondary" | "destructive" | "outline" = "outline";
+    let badgeClass = "";
+
+    if (status === 'approved') { badgeVariant = "default"; badgeClass = "bg-green-500 text-white"; }
+    else if (status === 'pending') { badgeVariant = "secondary"; badgeClass = "bg-yellow-500 text-white"; }
+    else if (status === 'rejected') { badgeVariant = "destructive"; }
+    else if (status === 'verified') { badgeVariant = "default"; badgeClass = "bg-blue-500 text-white"; }
+    else if (status === 'requires_correction') { badgeVariant = "default"; badgeClass = "bg-orange-500 text-white"; }
+
+    return <Badge variant={badgeVariant} className={badgeClass}>{statusText}</Badge>;
   };
 
   const canPerformActions = memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction';
   const canModifyApprovedOrRejected = memberData.status === 'approved' || memberData.status === 'rejected';
+  const canApprove = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
 
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-headline font-bold text-primary">Detail Anggota: {memberData.fullName}</h1>
-        <Button onClick={() => router.push('/admin/members')} variant="outline">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Daftar Anggota
-        </Button>
+        <div>
+          <Button onClick={handlePrint} variant="outline" className="mr-2 no-print">
+            <Printer className="mr-2 h-4 w-4" /> Cetak Profil
+          </Button>
+          <Button onClick={() => router.push('/admin/members')} variant="outline" className="no-print">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Daftar Anggota
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -316,23 +366,37 @@ export default function MemberDetailPage() {
         <CardHeader className="flex flex-row items-center space-x-4 bg-muted/30">
             <Coins className="h-10 w-10 text-primary" />
             <div>
-                <CardTitle className="text-2xl font-headline text-accent">Komitmen & Status</CardTitle>
-                 <CardDescription>Komitmen keuangan dan status pendaftaran.</CardDescription>
+                <CardTitle className="text-2xl font-headline text-accent">Komitmen, Status & Rating</CardTitle>
+                 <CardDescription>Komitmen keuangan, status pendaftaran, dan rating dari admin.</CardDescription>
             </div>
         </CardHeader>
         <CardContent className="pt-6 grid md:grid-cols-2 gap-x-8 gap-y-4">
-            <DetailItem label="Setuju Komitmen Keuangan (Simpanan Pokok & Wajib)" value={memberData.agreedToCommitment ? "Ya" : "Tidak"} />
+            <DetailItem label="Setuju Komitmen Keuangan" value={memberData.agreedToCommitment ? "Ya" : "Tidak"} />
             <DetailItem label="Setuju Syarat & Ketentuan" value={memberData.agreedToTerms ? "Ya" : "Tidak"} />
             <DetailItem label="Setuju Menjadi Anggota" value={memberData.agreedToBecomeMember ? "Ya" : "Tidak"} />
             <DetailItem label="Tanggal Registrasi" value={registrationDate} />
             <DetailItem label="Status Pendaftaran Saat Ini" value={getStatusBadge(memberData.status)} />
+            <DetailItem label="Rating Admin" value={
+                <div className="flex items-center">
+                    {memberData.adminRating ? (
+                        Array.from({ length: 5 }, (_, i) => (
+                            <Star key={i} className={cn("h-5 w-5", i < memberData.adminRating! ? "text-yellow-400 fill-yellow-400" : "text-gray-300")} />
+                        ))
+                    ) : (
+                        <span className="text-muted-foreground">Belum ada rating</span>
+                    )}
+                </div>
+            } />
              {memberData.adminComments && (
                 <DetailItem label="Komentar Admin Sebelumnya" value={memberData.adminComments} fullWidth />
+             )}
+             {memberData.lastAdminActionByName && lastActionDateFormatted && (
+                <DetailItem label="Aksi Admin Terakhir" value={`Oleh: ${memberData.lastAdminActionByName} pada ${lastActionDateFormatted}`} fullWidth />
              )}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="no-print">
         <CardHeader className="flex flex-row items-center space-x-4 bg-muted/30">
             <FileBadge className="h-10 w-10 text-primary" />
             <div>
@@ -352,12 +416,12 @@ export default function MemberDetailPage() {
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="no-print">
         <CardHeader>
             <CardTitle className="text-xl font-headline text-accent">Aksi Admin</CardTitle>
             <CardDescription>Lakukan tindakan terhadap pendaftaran anggota ini.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
             <div>
               <Label htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</Label>
               <Textarea
@@ -370,12 +434,13 @@ export default function MemberDetailPage() {
                 disabled={isProcessingAction}
               />
             </div>
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2 items-center">
                 {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'rejected') && (
                     <Button 
                         onClick={() => handleAdminAction('approved', 'member')} 
-                        disabled={isProcessingAction}
+                        disabled={isProcessingAction || !canApprove}
                         className="bg-green-600 hover:bg-green-700 text-white"
+                        title={!canApprove ? "Hanya Admin Utama, Sekertaris, atau Bendahara yang dapat menyetujui." : ""}
                     >
                         {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
                         Setujui Pendaftaran
@@ -422,10 +487,38 @@ export default function MemberDetailPage() {
                     <XSquare className="h-4 w-4" />
                     <AlertTitle>Anggota Telah Ditolak</AlertTitle>
                     <AlertDescription>
-                        Anda masih dapat mengubah statusnya menjadi "Disetujui" jika ada pertimbangan baru.
+                        Anda masih dapat mengubah statusnya menjadi "Disetujui" jika ada pertimbangan baru (memerlukan peran yang sesuai).
                     </AlertDescription>
                 </Alert>
             )}
+
+            <div className="pt-4 border-t">
+                <Label htmlFor="adminRating">Beri Rating Anggota (1-5)</Label>
+                <div className="flex items-center gap-2 mt-1">
+                    <Select 
+                        value={currentAdminRating ? currentAdminRating.toString() : "0"} 
+                        onValueChange={(val) => setCurrentAdminRating(parseInt(val))}
+                        disabled={isProcessingAction}
+                    >
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Pilih Rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="0">Pilih Rating</SelectItem>
+                            <SelectItem value="1">1 Bintang</SelectItem>
+                            <SelectItem value="2">2 Bintang</SelectItem>
+                            <SelectItem value="3">3 Bintang</SelectItem>
+                            <SelectItem value="4">4 Bintang</SelectItem>
+                            <SelectItem value="5">5 Bintang</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={handleSaveRating} disabled={isProcessingAction || currentAdminRating === (memberData.adminRating || 0) || currentAdminRating === 0}>
+                         {isProcessingAction && currentAdminRating !== (memberData.adminRating || 0) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Star className="mr-2 h-4 w-4" />}
+                        Simpan Rating
+                    </Button>
+                </div>
+                 {memberData.adminRating && <p className="text-xs text-muted-foreground mt-1">Rating saat ini: {memberData.adminRating} bintang.</p>}
+            </div>
         </CardContent>
       </Card>
     </div>
