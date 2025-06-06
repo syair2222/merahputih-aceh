@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon, Handshake } from 'lucide-react';
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={cn("mb-3", fullWidth ? "col-span-2" : "")}>
@@ -255,7 +255,6 @@ export default function MemberDetailPage() {
     'Tidak diketahui';
   
   const birthDateFormatted = memberData.birthDate ?
-    // Check if birthDate is already a Date object (from form) or string (from Firestore)
     (typeof memberData.birthDate === 'string' ? new Date(memberData.birthDate) : memberData.birthDate as unknown as Date)
         .toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric'}) 
     : 'Tidak diketahui';
@@ -378,8 +377,8 @@ export default function MemberDetailPage() {
         <CardHeader className="flex flex-row items-center space-x-4 bg-muted/30">
             <Coins className="h-10 w-10 text-primary" />
             <div>
-                <CardTitle className="text-2xl font-headline text-accent">Komitmen, Status & Rating</CardTitle>
-                 <CardDescription>Komitmen keuangan, status pendaftaran, dan rating dari admin.</CardDescription>
+                <CardTitle className="text-2xl font-headline text-accent">Komitmen, Status & Aktivitas</CardTitle>
+                 <CardDescription>Komitmen keuangan, status pendaftaran, rating admin, dan aktivitas rekomendasi.</CardDescription>
             </div>
         </CardHeader>
         <CardContent className="pt-6 grid md:grid-cols-2 gap-x-8 gap-y-4">
@@ -399,6 +398,15 @@ export default function MemberDetailPage() {
                     )}
                 </div>
             } />
+            <DetailItem 
+              label="Rekomendasi Diberikan" 
+              value={
+                <div className="flex items-center">
+                  <Handshake className="mr-2 h-5 w-5 text-primary" />
+                  {memberData.recommendationsGivenCount || 0} kali
+                </div>
+              } 
+            />
              {memberData.adminComments && (
                 <DetailItem label="Komentar Admin Sebelumnya" value={memberData.adminComments} fullWidth />
              )}
