@@ -10,8 +10,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, ShieldAlert, Loader2, Send, Save } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function NewAnnouncementPage() {
   const { user, loading } = useAuth();
@@ -37,36 +39,29 @@ export default function NewAnnouncementPage() {
       });
       return;
     }
-    setIsSubmitting(true);
-    // Placeholder for actual submission logic
-    // console.log("Submitting announcement:", { title, content });
-    // try {
-    //   await addDoc(collection(db, 'announcements'), { 
-    //      title, 
-    //      content, 
-    //      authorId: user?.uid, 
-    //      authorName: user?.displayName || user?.email,
-    //      createdAt: serverTimestamp(),
-    //      status: 'published' // or 'draft'
-    //   });
-    //   toast({ title: "Pengumuman Diterbitkan", description: "Pengumuman Anda berhasil dibuat." });
-    //   router.push('/admin/announcements');
-    // } catch (error) {
-    //   console.error("Error creating announcement:", error);
-    //   toast({ title: "Gagal Membuat Pengumuman", description: "Terjadi kesalahan.", variant: "destructive"});
-    // } finally {
-    //   setIsSubmitting(false);
-    // }
+    if (!user) {
+        toast({ title: "Error", description: "Pengguna tidak terautentikasi.", variant: "destructive" });
+        return;
+    }
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Pengumuman Disimpan (Simulasi)",
-        description: "Fitur penyimpanan pengumuman ke database akan segera diimplementasikan.",
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'announcements'), { 
+         title, 
+         content, 
+         authorId: user.uid, 
+         authorName: user.displayName || user.email,
+         createdAt: serverTimestamp(),
+         status: 'published'
       });
+      toast({ title: "Pengumuman Diterbitkan", description: "Pengumuman Anda berhasil dibuat." });
+      router.push('/admin/announcements');
+    } catch (error) {
+      console.error("Error creating announcement:", error);
+      toast({ title: "Gagal Membuat Pengumuman", description: "Terjadi kesalahan saat menyimpan pengumuman.", variant: "destructive"});
+    } finally {
       setIsSubmitting(false);
-      // router.push('/admin/announcements'); // Uncomment when backend is ready
-    }, 1500);
+    }
   };
 
   if (loading) {
@@ -135,7 +130,7 @@ export default function NewAnnouncementPage() {
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" /> }
-              Simpan & Terbitkan (Segera Hadir)
+              Simpan & Terbitkan
             </Button>
           </CardFooter>
         </form>

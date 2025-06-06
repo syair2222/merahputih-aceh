@@ -76,12 +76,16 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
 
 
 export interface Announcement {
-  id: string;
+  id: string; // Firestore document ID
   title: string;
   content: string;
-  date: string; // ISO string
-  source: string; // Admin name or "Dinas Koperasi"
-  authorId: string;
+  authorId: string; // Firebase Auth UID of admin
+  authorName: string; // displayName or email of admin
+  createdAt: any; // Firestore Timestamp
+  status: 'published' | 'draft';
+  // 'date' and 'source' from original design can be derived:
+  // date for display from createdAt
+  // source from authorName
   comments?: AnnouncementComment[];
 }
 
