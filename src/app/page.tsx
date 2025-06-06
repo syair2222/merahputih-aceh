@@ -115,8 +115,8 @@ export default function Home() {
       <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden bg-primary/5">
         {/* Koperasi Indonesia Logo - Top Right */}
         <Image
-            src="https://placehold.co/100x100.png" 
-            alt="Logo Koperasi Placeholder" 
+            src="/images/koperasi_merah_putih.png" 
+            alt="Logo Koperasi Merah Putih" 
             width={100}
             height={100}
             className="absolute top-4 right-4 z-20 hidden md:block rounded-md shadow-lg"
@@ -126,8 +126,8 @@ export default function Home() {
         {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
-            src="https://placehold.co/128x128.png"
-            alt="Logo Koperasi Utama Placeholder" 
+            src="/images/logo_koperasi_utama.png"
+            alt="Logo Koperasi Utama" 
             width={100} 
             height={100} 
             className="mx-auto mb-4 sm:mb-6 rounded-full shadow-2xl border-4 border-white w-24 h-24 sm:w-32 sm:h-32 object-cover" 
