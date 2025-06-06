@@ -83,6 +83,7 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   lastAdminActionByName?: string; // DisplayName of admin performing the action
   lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
   adminRating?: number; // Rating 1-5 by admin
+  recommendationsGivenCount?: number; // New field: count of recommendations given by this member
 }
 
 
@@ -207,3 +208,4 @@ export interface UserDocument {
   photoURL?: string | null;
   memberIdNumber?: string;
 }
+
