@@ -1,4 +1,6 @@
 
+'use client'; // Added this directive
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Info as InfoIcon, Printer } from "lucide-react"; // Added Printer
 import Image from "next/image";
@@ -15,7 +17,7 @@ export default function CooperativeInfoPage() {
 
   return (
     <div className="space-y-8">
-      <header className="text-center py-8 bg-secondary rounded-lg shadow-md">
+      <header className="text-center py-8 bg-secondary rounded-lg shadow-md no-print">
         <Image src="/images/logo_koperasi_utama.png" alt="Logo Koperasi Detail" width={120} height={120} className="mx-auto mb-4 rounded-full" data-ai-hint="cooperative logo" />
         <h1 className="text-4xl font-headline font-bold text-primary">{cooperativeInfo.name}</h1>
         <p className="text-lg text-muted-foreground">Informasi Detail Koperasi</p>
@@ -189,7 +191,7 @@ export default function CooperativeInfoPage() {
               {cooperativeInfo.adArtContent}
             </pre>
           </div>
-          <div className="mt-4 text-center">
+          <div className="mt-4 text-center no-print">
             <Button onClick={handlePrint} variant="outline">
               <Printer className="mr-2 h-4 w-4" /> Cetak Halaman Info Koperasi
             </Button>
@@ -199,7 +201,7 @@ export default function CooperativeInfoPage() {
           </div>
         </CardContent>
       </Card>
-       <div className="text-center mt-8">
+       <div className="text-center mt-8 no-print">
         <Button asChild variant="outline" size="lg">
           <Link href="/">Kembali ke Beranda</Link>
         </Button>
