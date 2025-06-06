@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UsersCog } from 'lucide-react'; // Added UsersCog
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UserCog } from 'lucide-react'; // Changed UsersCog to UserCog
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -81,7 +81,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   ];
 
   if (isAdminUtama) {
-    adminMenuItems.push({ href: '/admin/user-management', label: 'Manajemen Pengguna', icon: UsersCog });
+    adminMenuItems.push({ href: '/admin/user-management', label: 'Manajemen Pengguna', icon: UserCog }); // Changed UsersCog to UserCog
   }
   
   adminMenuItems.push(

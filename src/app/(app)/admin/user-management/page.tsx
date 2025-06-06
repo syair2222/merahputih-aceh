@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, ShieldAlert, UsersCog, Edit, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save } from 'lucide-react'; // Changed UsersCog to UserCog
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -234,7 +234,7 @@ export default function UserManagementPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <UsersCog className="h-8 w-8 text-primary" />
+          <UserCog className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-headline font-bold text-primary">Manajemen Pengguna & Peran</h1>
         </div>
          <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
@@ -259,7 +259,7 @@ export default function UserManagementPage() {
           )}
           {users.length === 0 && !pageLoading && !error ? (
             <Alert>
-              <UsersCog className="h-4 w-4" />
+              <UserCog className="h-4 w-4" />
               <AlertTitle>Tidak Ada Pengguna</AlertTitle>
               <AlertDescription>Belum ada pengguna yang terdaftar di sistem.</AlertDescription>
             </Alert>

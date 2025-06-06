@@ -4,11 +4,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UsersCog } from "lucide-react"; // Added Edit, UsersCog icons
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog } from "lucide-react"; // Changed UsersCog to UserCog
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react"; // Added useState
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // Dummy data for dashboard stats
@@ -48,20 +48,13 @@ export default function AdminDashboardPage() {
     }
 
     // Dynamically add User Management if admin_utama
+    const currentQuickActions = [...baseQuickActions]; // Create a mutable copy
     if (user.role === 'admin_utama') {
-        // Check if it's already added to prevent duplicates on re-renders
-        if (!baseQuickActions.find(action => action.href === "/admin/user-management")) {
-             setQuickActions(prevActions => [
-                ...prevActions,
-                { label: "Manajemen Pengguna", href: "/admin/user-management", icon: UsersCog }
-            ]);
-        } else {
-             setQuickActions(baseQuickActions); // Ensure base is set if already present logic was faulty
+        if (!currentQuickActions.find(action => action.href === "/admin/user-management")) {
+             currentQuickActions.push({ label: "Manajemen Pengguna", href: "/admin/user-management", icon: UserCog }); // Changed UsersCog to UserCog
         }
-    } else {
-        setQuickActions(baseQuickActions);
     }
-
+    setQuickActions(currentQuickActions);
 
   }, [user, authLoading, router]);
 
