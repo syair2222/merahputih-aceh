@@ -6,7 +6,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import AppFooter from '@/components/layout/app-footer';
 import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -80,19 +79,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
-  // Urutan menu anggota sesuai permintaan terakhir
+  // Sesuai urutan dari OCR dan permintaan terakhir:
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
     { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare },
-    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send }, 
-    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, 
+    { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: Send },
+    { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, // Label dari OCR: Riwayat Pengajuan (Rekod Transaksi)
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
-    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle }, // Sesuai OCR: Profil Saya (setelah item di atas)
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
-  let currentMenuItems = []; 
+  let currentMenuItems = [];
   if (isAdmin) {
     currentMenuItems = adminMenuItems;
   } else if (isMember) {
