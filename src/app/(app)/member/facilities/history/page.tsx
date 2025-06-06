@@ -53,6 +53,8 @@ export default function MemberFacilityHistoryPage() {
         id: doc.id,
         ...(doc.data() as Omit<FacilityApplicationData, 'id'>),
         applicationDate: (doc.data().applicationDate as Timestamp)?.toDate(),
+        // Ensure requestedRecommendations is an array, default to empty if undefined
+        requestedRecommendations: doc.data().requestedRecommendations || [],
       })) as FacilityApplicationData[];
       setApplications(appsData);
     } catch (err) {
@@ -134,35 +136,50 @@ export default function MemberFacilityHistoryPage() {
                   <TableHead className="hidden md:table-cell">Kuantitas/Jumlah</TableHead>
                   <TableHead className="hidden lg:table-cell">Tgl. Pengajuan</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="hidden md:table-cell">Rekomendasi</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {applications.map((app) => (
-                  <TableRow key={app.id}>
-                    <TableCell className="font-medium">{app.facilityType}{app.facilityType === 'Lainnya' && app.specificProductName ? ` (${app.specificProductName})` : ''}</TableCell>
-                    <TableCell className="hidden md:table-cell">{app.quantityOrAmount}</TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {app.applicationDate instanceof Date ? app.applicationDate.toLocaleDateString('id-ID') : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`text-white ${getStatusBadgeColor(app.status)}`}>
-                        {statusDisplayMember[app.status] || app.status}
-                      </Badge>
-                      {app.adminComments && (app.status === 'rejected' || app.status === 'requires_correction') && (
-                        <Button variant="link" size="sm" className="p-1 h-auto ml-1 text-xs" onClick={() => toast({title: `Catatan Admin untuk ${app.facilityType}`, description: app.adminComments || "Tidak ada catatan."})}>
-                            <MessageSquare className="h-3 w-3 mr-1"/>Lihat Catatan
-                        </Button>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                       {/* TODO: Create a detail view page for members as well, similar to admin's but read-only */}
-                       <Button variant="outline" size="sm" onClick={() => toast({title: "Detail Pengajuan", description:"Fitur detail pengajuan untuk anggota segera hadir."})}>
-                         <Eye className="mr-2 h-4 w-4" /> Lihat (Segera)
-                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {applications.map((app) => {
+                  const approvedRecommendations = app.requestedRecommendations?.filter(r => r.status === 'approved').length || 0;
+                  const pendingRecommendations = app.requestedRecommendations?.filter(r => r.status === 'pending').length || 0;
+                  const totalRequested = app.requestedRecommendations?.length || 0;
+                  let recommendationText = "-";
+                  if (totalRequested > 0) {
+                    recommendationText = `${approvedRecommendations} disetujui, ${pendingRecommendations} menunggu (dari ${totalRequested})`;
+                  }
+
+                  return (
+                    <TableRow key={app.id} id={app.id}> {/* Added id to TableRow for potential deep linking */}
+                      <TableCell className="font-medium">{app.facilityType}{app.facilityType === 'Lainnya' && app.specificProductName ? ` (${app.specificProductName})` : ''}</TableCell>
+                      <TableCell className="hidden md:table-cell">{app.quantityOrAmount}</TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {app.applicationDate instanceof Date ? app.applicationDate.toLocaleDateString('id-ID') : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`text-white ${getStatusBadgeColor(app.status)}`}>
+                          {statusDisplayMember[app.status] || app.status}
+                        </Badge>
+                        {app.adminComments && (app.status === 'rejected' || app.status === 'requires_correction') && (
+                          <Button variant="link" size="sm" className="p-1 h-auto ml-1 text-xs" onClick={() => toast({title: `Catatan Admin untuk ${app.facilityType}`, description: app.adminComments || "Tidak ada catatan."})}>
+                              <MessageSquare className="h-3 w-3 mr-1"/>Lihat Catatan
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs">
+                        {recommendationText}
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <Button variant="outline" size="sm" asChild>
+                           <Link href={`/member/facilities/${app.id}`}>
+                             <Eye className="mr-2 h-4 w-4" /> Detail
+                           </Link>
+                         </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -176,3 +193,5 @@ export default function MemberFacilityHistoryPage() {
     </div>
   );
 }
+
+    
