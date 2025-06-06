@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Added Alert components
+import { Loader2, UploadCloud, CheckCircle, AlertTriangle, Users } from 'lucide-react'; // Added Users icon
 import type { FacilityApplicationData } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions } from '@/types';
 import { db } from '@/lib/firebase';
@@ -310,6 +311,9 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         applicationDate: serverTimestamp(),
         status: 'pending_review',
         lastUpdated: serverTimestamp(),
+        // Placeholder fields are not saved during initial application
+        // requestedRecommendations: [], 
+        // recommendationCount: 0,
       };
 
       await addDoc(collection(db, 'facilityApplications'), applicationToSave);
@@ -473,11 +477,27 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
 
           <FormField control={form.control} name="additionalNotes" render={({ field }) => (<FormItem><FormLabel>Catatan Tambahan (Opsional)</FormLabel><FormControl><Textarea {...field} placeholder="Informasi tambahan yang relevan" value={field.value ?? ''}/></FormControl><FormMessage /></FormItem>)} />
         
-        <Button type="submit" className="w-full" disabled={isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)}>
-          {(isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Kirim Pengajuan
-        </Button>
+          <div className="pt-4 border-t">
+            <Alert variant="default" className="bg-blue-50 border-blue-300 text-blue-700">
+                <Users className="h-5 w-5 text-blue-600" />
+                <AlertTitle className="font-semibold text-blue-800">Fitur Rekomendasi Anggota</AlertTitle>
+                <AlertDescription>
+                  Ingin meminta rekomendasi dari anggota lain untuk memperkuat pengajuan Anda? 
+                  <br />
+                  Fitur ini akan segera hadir! Anda dapat mengundang anggota lain untuk memberikan dukungan atas pengajuan Anda.
+                  <Button type="button" variant="link" className="p-0 h-auto text-blue-700 block mt-1" disabled>
+                    Minta Rekomendasi (Segera Hadir)
+                  </Button>
+                </AlertDescription>
+            </Alert>
+          </div>
+
+          <Button type="submit" className="w-full mt-6" disabled={isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)}>
+            {(isSubmitting || Object.values(fileUploadStates).some(s => s.isLoading)) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Kirim Pengajuan
+          </Button>
       </form>
     </Form>
   );
 }
+

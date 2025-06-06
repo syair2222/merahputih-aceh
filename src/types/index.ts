@@ -168,6 +168,10 @@ export interface FacilityApplicationData {
   decisionMaker?: string; // Role or name of admin who decided
   decisionDate?: any; // Firestore Timestamp
   lastUpdated?: any; // Firestore Timestamp
+
+  // Placeholders for recommendation feature
+  requestedRecommendations?: Array<{ memberId: string; memberName: string; status: 'pending' | 'approved' | 'rejected' }>;
+  recommendationCount?: number;
 }
 
 export const statusDisplay: Record<FacilityApplicationData['status'], string> = {
