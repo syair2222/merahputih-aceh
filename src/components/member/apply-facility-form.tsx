@@ -13,9 +13,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, UploadCloud, CheckCircle, AlertTriangle, Users, ChevronDown, ChevronsUpDown } from 'lucide-react';
-import type { FacilityApplicationData, MemberRegistrationData } from '@/types';
-import { FacilityTypeOptions, MemberBusinessAreaOptions } from '@/types';
+import { Loader2, UploadCloud, CheckCircle, AlertTriangle, Users, ChevronDown, ChevronsUpDown, Building, Briefcase, Home } from 'lucide-react'; // Added Building, Briefcase, Home
+import type { FacilityApplicationData, MemberRegistrationData, TargetEntityType } from '@/types'; // Added TargetEntityType
+import { FacilityTypeOptions, MemberBusinessAreaOptions, TargetEntityTypeOptions } from '@/types'; // Added TargetEntityTypeOptions
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -59,11 +59,15 @@ const applicationSchema = z.object({
   hasAppliedBefore: z.enum(['Ya', 'Tidak'], { required_error: "Mohon pilih salah satu." }),
   previousApplicationDetails: z.string().optional(),
   additionalNotes: z.string().optional(),
+  
+  targetEntityType: z.enum(TargetEntityTypeOptions).optional(),
+  targetEntityName: z.string().optional(),
+
   proposalFile: fileInputSchema,
   productPhotoFile: fileInputSchema,
   statementLetterFile: fileInputSchema,
   otherSupportFile: fileInputSchema,
-  selectedRecommenderIds: z.array(z.string()).optional().default([]), // New field for selected recommender IDs
+  selectedRecommenderIds: z.array(z.string()).optional().default([]),
 }).refine(data => {
     if (data.facilityType === 'Lainnya') {
       return !!data.specificProductName && data.specificProductName.length > 0;
@@ -90,6 +94,14 @@ const applicationSchema = z.object({
   }, {
     message: "Detail pengajuan sebelumnya wajib diisi jika pernah mengajukan.",
     path: ['previousApplicationDetails'],
+  }).refine(data => {
+    if (data.targetEntityType === 'BANK_MITRA' || data.targetEntityType === 'DINAS_TERKAIT') {
+        return !!data.targetEntityName && data.targetEntityName.trim().length > 0;
+    }
+    return true;
+  }, {
+    message: "Nama Bank/Dinas wajib diisi jika jenis target dipilih.",
+    path: ["targetEntityName"]
   });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -115,8 +127,15 @@ interface ApplyFacilityFormProps {
 interface AvailableMember {
   id: string;
   fullName: string;
-  email?: string; // Optional, for display or future use
+  email?: string; 
 }
+
+const targetEntityTypeDisplay: Record<TargetEntityType, {label: string, icon?: React.ElementType}> = {
+    KOPERASI_INTERNAL: {label: 'Koperasi Internal', icon: Home},
+    BANK_MITRA: {label: 'Bank Mitra', icon: Building},
+    DINAS_TERKAIT: {label: 'Dinas Terkait', icon: Briefcase},
+    UMUM_BELUM_DITENTUKAN: {label: 'Umum / Belum Ditentukan', icon: Users},
+};
 
 export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: ApplyFacilityFormProps) {
   const { user } = useAuth();
@@ -147,6 +166,8 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       previousApplicationDetails: '',
       additionalNotes: '',
       hasAppliedBefore: undefined,
+      targetEntityType: 'KOPERASI_INTERNAL', // Default to Koperasi Internal
+      targetEntityName: '',
       proposalFile: undefined,
       productPhotoFile: undefined,
       statementLetterFile: undefined,
@@ -186,7 +207,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         const querySnapshot = await getDocs(q);
         const membersList = querySnapshot.docs
           .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as AvailableMember))
-          .filter(member => member.id !== user.uid); // Exclude current user
+          .filter(member => member.id !== user.uid); 
         setAvailableMembersForRec(membersList);
       } catch (error) {
         console.error("Error fetching available members:", error);
@@ -326,7 +347,7 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             const member = availableMembersForRec.find(m => m.id === memberId);
             return {
               memberId: memberId,
-              memberName: member ? member.fullName : 'Anggota Tidak Dikenal', // Fallback
+              memberName: member ? member.fullName : 'Anggota Tidak Dikenal',
               status: 'pending' as const
             };
           });
@@ -351,7 +372,9 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
         status: 'pending_review',
         lastUpdated: serverTimestamp(),
         requestedRecommendations: requestedRecommendations,
-        recommendationCount: 0, // Initialize count
+        recommendationCount: 0,
+        targetEntityType: data.targetEntityType || 'KOPERASI_INTERNAL', // Default if undefined
+        targetEntityName: (data.targetEntityType === 'BANK_MITRA' || data.targetEntityType === 'DINAS_TERKAIT') ? data.targetEntityName : undefined,
       };
 
       await addDoc(collection(db, 'facilityApplications'), applicationToSave);
@@ -372,6 +395,8 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
       form.setValue('statementLetterFile', undefined);
       form.setValue('otherSupportFile', undefined);
       form.setValue('selectedRecommenderIds', []);
+      form.setValue('targetEntityType', 'KOPERASI_INTERNAL');
+      form.setValue('targetEntityName', '');
 
 
       if (onFormSubmitSuccess) {
@@ -504,6 +529,61 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
             <FormField control={form.control} name="previousApplicationDetails" render={({ field }) => (<FormItem><FormLabel>Jika Ya, jelaskan bentuk bantuan dan statusnya</FormLabel><FormControl><Textarea {...field} placeholder="Cth: Pinjaman modal Rp 2.000.000, status Lunas" value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>)} />
           )}
 
+        <div className="pt-4 border-t">
+            <FormField
+                control={form.control}
+                name="targetEntityType"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="text-md font-semibold">Tujukan Pengajuan Ke:</FormLabel>
+                        <Select onValueChange={(value) => {
+                            field.onChange(value as TargetEntityType);
+                            if (value !== 'BANK_MITRA' && value !== 'DINAS_TERKAIT') {
+                                form.setValue('targetEntityName', ''); // Clear name if not bank or agency
+                            }
+                        }} defaultValue={field.value || 'KOPERASI_INTERNAL'}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih tujuan pengajuan..." />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {TargetEntityTypeOptions.map(type => {
+                                    const Icon = targetEntityTypeDisplay[type].icon;
+                                    return (
+                                        <SelectItem key={type} value={type}>
+                                            <div className="flex items-center">
+                                                {Icon && <Icon className="mr-2 h-4 w-4 text-muted-foreground" />}
+                                                {targetEntityTypeDisplay[type].label}
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })}
+                            </SelectContent>
+                        </Select>
+                        <FormDescription>Pilih kepada siapa pengajuan ini ditujukan.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            {(form.watch('targetEntityType') === 'BANK_MITRA' || form.watch('targetEntityType') === 'DINAS_TERKAIT') && (
+                <FormField
+                    control={form.control}
+                    name="targetEntityName"
+                    render={({ field }) => (
+                        <FormItem className="mt-4">
+                            <FormLabel>Nama {form.watch('targetEntityType') === 'BANK_MITRA' ? 'Bank Mitra' : 'Dinas Terkait'}</FormLabel>
+                            <FormControl>
+                                <Input {...field} placeholder={`Masukkan nama ${form.watch('targetEntityType') === 'BANK_MITRA' ? 'bank' : 'dinas'}...`} value={field.value ?? ''}/>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+        </div>
+
+
           <h3 className="text-md font-semibold pt-4 border-t">Upload Dokumen Pendukung (Opsional)</h3>
           {renderFileInput('proposalFile', 'Proposal Usaha (Jika Ada)', 'Format: JPG, PNG, WEBP, PDF.', 'business proposal')}
           {renderFileInput('productPhotoFile', 'Foto Produk / Alat (Jika Relevan)', 'Format: JPG, PNG, WEBP, PDF.', 'product item equipment')}
@@ -572,3 +652,4 @@ export default function ApplyFacilityForm({ onFormSubmitSuccess, className }: Ap
     </Form>
   );
 }
+

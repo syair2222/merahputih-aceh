@@ -83,7 +83,7 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   lastAdminActionByName?: string; // DisplayName of admin performing the action
   lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
   adminRating?: number; // Rating 1-5 by admin
-  recommendationsGivenCount?: number; // New field: count of recommendations given by this member
+  recommendationsGivenCount?: number;
 }
 
 
@@ -142,6 +142,15 @@ export interface RequestedRecommendation {
   decisionDate?: any; // Firestore Timestamp
 }
 
+export const TargetEntityTypeOptions = [
+  'KOPERASI_INTERNAL',
+  'BANK_MITRA',
+  'DINAS_TERKAIT',
+  'UMUM_BELUM_DITENTUKAN',
+] as const;
+export type TargetEntityType = typeof TargetEntityTypeOptions[number];
+
+
 export interface FacilityApplicationData {
   id?: string; // Firestore document ID
   userId: string; // Firebase Auth UID of the member
@@ -167,6 +176,9 @@ export interface FacilityApplicationData {
   otherSupportFile?: FileList;
 
   additionalNotes?: string;
+
+  targetEntityType?: TargetEntityType; // New field
+  targetEntityName?: string; // New field: e.g., "Bank XYZ" or "Dinas Pertanian"
 
   applicationDate: any; // Firestore Timestamp
   status: 'pending_review' | 'pending_approval' | 'approved' | 'rejected' | 'completed' | 'cancelled_by_member' | 'requires_correction';
