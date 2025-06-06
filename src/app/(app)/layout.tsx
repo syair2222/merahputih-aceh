@@ -1,5 +1,5 @@
 
-'use client'; 
+'use client';
 
 import type { ReactNode } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -7,12 +7,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import AppFooter from '@/components/layout/app-footer';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert } from 'lucide-react'; // Replaced Annoyed with Megaphone, added ShieldAlert
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
-// Loader component (jika belum ada secara global atau di file util)
+// Loader component
 const Loader2 = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -37,14 +37,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    // This effect handles the redirect if user is not authenticated AFTER loading is complete.
     if (!loading && !user) {
-      // Jika tidak loading dan tidak ada user, redirect ke login
-      // Kecuali jika sudah di halaman login/register untuk menghindari loop
-      if (pathname !== '/login' && pathname !== '/register') {
-        router.push('/login');
-      }
+      // AppLayout is for the (app) group, which is protected.
+      // If we're in AppLayout and !user, it's always a redirect to login.
+      router.push('/login');
     }
-  }, [user, loading, router, pathname]);
+  }, [user, loading, router]); // Removed pathname as it's not strictly needed for this redirect logic
 
   if (loading) {
     return (
@@ -55,35 +54,30 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Jika tidak loading, tapi tetap tidak ada user (misalnya setelah gagal memuat user),
-  // dan kita tidak sedang di halaman auth, tampilkan pesan atau redirect.
-  if (!user && !loading && pathname !== '/login' && pathname !== '/register') {
-    // Ini bisa menjadi fallback jika useEffect di atas belum sempat redirect,
-    // atau jika user menjadi null setelah loading selesai.
+  // If auth is resolved (not loading) but there's no user,
+  // we should not render the main layout/children.
+  // The useEffect above will handle the redirect.
+  // Display a message or a minimal loader while redirecting.
+  if (!user) {
     return (
          <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
             <Alert variant="destructive" className="max-w-md">
               <ShieldAlert className="h-4 w-4" />
               <AlertTitle>Sesi Tidak Ditemukan</AlertTitle>
               <AlertDescription>
-                Anda tidak terautentikasi. Silakan login untuk melanjutkan.
+                Anda tidak terautentikasi. Mengalihkan ke halaman login...
               </AlertDescription>
             </Alert>
-            <Button onClick={() => router.push('/login')} className="mt-6">
-              Ke Halaman Login
-            </Button>
+            <Loader2 className="mt-4 h-8 w-8 animate-spin text-primary" />
         </div>
     );
   }
-  
-  // Jika user ada, kita bisa lanjutkan render layout
-  // Namun, jika user ada tapi tidak memiliki peran yang sesuai untuk halaman admin/member tertentu,
-  // halaman spesifik tersebut yang seharusnya menangani redirect atau pesan akses ditolak.
-  // AppLayout hanya memastikan user ada untuk halaman-halaman di dalam (app).
 
+  // If we reach here, user is authenticated (!loading && user is not null).
+  // Now, render the actual layout.
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
   const isMember = user?.role === 'member';
-  
+
   const commonMenuItems = [
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
@@ -95,7 +89,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/applications', label: 'Verifikasi Pendaftaran', icon: FileText },
     { href: '/admin/facilities', label: 'Manajemen Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
-    { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone }, // Changed from Annoyed
+    { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
     ...commonMenuItems,
   ];
 
@@ -103,19 +97,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
     { href: '/member/facilities/apply', label: 'Ajukan Fasilitas', icon: DollarSign },
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
-    { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone }, // Changed from Annoyed
+    { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
     ...commonMenuItems,
   ];
-  
-  // Default ke commonMenuItems jika peran tidak dikenali, atau jika user belum sepenuhnya dimuat.
+
   let currentMenuItems = commonMenuItems;
-  if (user) { // Pastikan user ada sebelum mengecek role
+  if (user) { // Ensure user exists before checking role
     if (isAdmin) {
       currentMenuItems = adminMenuItems;
     } else if (isMember) {
       currentMenuItems = memberMenuItems;
     }
-    // Jika bukan admin atau member (misal prospective_member), mereka tetap pakai commonMenuItems
   }
 
 
@@ -124,7 +116,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <Sidebar side="left" variant="sidebar" collapsible="icon">
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-             <img src="https://placehold.co/40x40.png" alt="Koperasi Logo" className="rounded-full" data-ai-hint="cooperative logo" />
+             <img src="https://placehold.co/40x40.png" alt="Koperasi Logo" className="rounded-full" data-ai-hint="cooperative logo"/>
             <div className="group-data-[collapsible=icon]:hidden">
               <p className="font-headline text-lg font-semibold text-sidebar-primary">Koperasi Digital</p>
               <p className="text-xs text-sidebar-foreground/80">{user?.displayName || user?.email}</p>
@@ -135,9 +127,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <SidebarMenu>
             {currentMenuItems.map((item) => (
               <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton 
-                  asChild 
-                  isActive={pathname === item.href || (item.href !== '/admin/dashboard' && item.href !== '/member/dashboard' && pathname.startsWith(item.href) && item.href !== '/')}
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/' && (item.href.endsWith('dashboard') ? pathname === item.href : true) )}
                   tooltip={{children: item.label, className: "bg-primary text-primary-foreground"}}
                 >
                   <Link href={item.href} >
@@ -168,7 +160,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="p-4 sm:p-6 md:p-8">
          {children}
         </div>
-        <AppFooter /> 
+        <AppFooter />
       </SidebarInset>
     </SidebarProvider>
   );
