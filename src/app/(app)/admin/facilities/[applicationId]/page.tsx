@@ -17,7 +17,7 @@ import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { FormLabel } from '@/components/ui/form';
+import { Label } from '@/components/ui/label'; // Changed from FormLabel
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
@@ -344,7 +344,7 @@ export default function AdminFacilityApplicationDetailPage() {
           {(application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction') && (
             <>
               <div>
-                <FormLabel htmlFor="adminDecisionComment">Komentar / Alasan Keputusan (Wajib jika ditolak/minta perbaikan)</FormLabel>
+                <Label htmlFor="adminDecisionComment">Komentar / Alasan Keputusan (Wajib jika ditolak/minta perbaikan)</Label>
                 <Textarea
                   id="adminDecisionComment"
                   value={adminDecisionComment}
