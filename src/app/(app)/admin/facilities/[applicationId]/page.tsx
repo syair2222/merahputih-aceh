@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, ThumbsUp } from 'lucide-react'; // Added Users, ThumbsUp
+import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info } from 'lucide-react'; // Changed ThumbsUp to Info
 import type { FacilityApplicationData } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@/types'; 
 import { db } from '@/lib/firebase';
@@ -260,10 +260,10 @@ export default function AdminFacilityApplicationDetailPage() {
                  <p className="text-muted-foreground">Tidak ada permintaan rekomendasi atau data rekomendasi yang terkait dengan pengajuan ini.</p>
             )}
              <Alert variant="default" className="mt-4 bg-blue-50 border-blue-300 text-blue-700">
-                <ThumbsUp className="h-5 w-5 text-blue-600" />
-                <AlertTitle className="font-semibold text-blue-800">Segera Hadir</AlertTitle>
+                <Info className="h-5 w-5 text-blue-600" />
+                <AlertTitle className="font-semibold text-blue-800">Informasi Penilaian</AlertTitle>
                 <AlertDescription>
-                  Fitur untuk mengelola dan melihat detail rekomendasi dari anggota lain akan tersedia di sini.
+                  Capai Rekomendasi terbanyak sebagai Cara kami menilai.
                 </AlertDescription>
             </Alert>
         </CardContent>
