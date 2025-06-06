@@ -1,6 +1,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Info as InfoIcon } from "lucide-react"; // Added InfoIcon
+import { CheckCircle, Info as InfoIcon, Printer } from "lucide-react"; // Added Printer
 import Image from "next/image";
 import { cooperativeInfo } from "@/lib/site-data";
 import Link from "next/link";
@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 
 export default function CooperativeInfoPage() {
   // cooperativeInfo is now imported from @/lib/site-data
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="space-y-8">
@@ -184,13 +188,13 @@ export default function CooperativeInfoPage() {
             <pre className="whitespace-pre-wrap break-words">
               {cooperativeInfo.adArtContent}
             </pre>
-            <p className="mt-4 text-center">
-              <Button asChild variant="link" disabled>
-                <Link href="/dokumen/AD_ART_Koperasi_Merah_Putih_Sejahtera.pdf" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                  Unduh Dokumen AD/ART Lengkap (PDF)
-                </Link>
-              </Button>
-              <span className="text-xs block text-muted-foreground">(Contoh link, file PDF perlu disediakan jika ingin diaktifkan)</span>
+          </div>
+          <div className="mt-4 text-center">
+            <Button onClick={handlePrint} variant="outline">
+              <Printer className="mr-2 h-4 w-4" /> Cetak Halaman Info Koperasi
+            </Button>
+            <p className="text-xs block text-muted-foreground mt-1">
+              (Ini akan mencetak seluruh halaman Info Koperasi, termasuk AD/ART)
             </p>
           </div>
         </CardContent>
@@ -203,6 +207,3 @@ export default function CooperativeInfoPage() {
     </div>
   );
 }
-
-
-    
