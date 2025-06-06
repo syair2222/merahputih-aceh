@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, History, Eye, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, History, Eye, MessageSquare, Send } from 'lucide-react'; // Added Send
 import type { FacilityApplicationData } from '@/types';
 import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 // Re-define statusDisplay if not exported from types (or ensure it is exported)
 const statusDisplayMember: Record<FacilityApplicationData['status'], string> = {
@@ -29,6 +30,7 @@ const statusDisplayMember: Record<FacilityApplicationData['status'], string> = {
 export default function MemberFacilityHistoryPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [applications, setApplications] = useState<FacilityApplicationData[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +150,7 @@ export default function MemberFacilityHistoryPage() {
                         {statusDisplayMember[app.status] || app.status}
                       </Badge>
                       {app.adminComments && (app.status === 'rejected' || app.status === 'requires_correction') && (
-                        <Button variant="link" size="sm" className="p-1 h-auto ml-1 text-xs" onClick={() => toast({title: `Catatan Admin untuk ${app.facilityType}`, description: app.adminComments})}>
+                        <Button variant="link" size="sm" className="p-1 h-auto ml-1 text-xs" onClick={() => toast({title: `Catatan Admin untuk ${app.facilityType}`, description: app.adminComments || "Tidak ada catatan."})}>
                             <MessageSquare className="h-3 w-3 mr-1"/>Lihat Catatan
                         </Button>
                       )}
