@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Belleza, Alegreya } from 'next/font/google';
 import './globals.css';
@@ -23,6 +24,7 @@ const alegreya = Alegreya({
 export const metadata: Metadata = {
   title: 'Koperasi Digital Merah Putih',
   description: 'Platform Digital Koperasi Merah Putih Sejahtera',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 };
 
 export default function RootLayout({
