@@ -1,18 +1,19 @@
 
-// Use client for potential interactions or data fetching hooks
+// src/app/(app)/member/dashboard/page.tsx
 'use client';
+
+import React, { useEffect, useState } from "react"; // Explicit React import
+import { useRouter } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/use-auth";
+import type { MemberRegistrationData } from "@/types";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DollarSign, FileText, MessageSquare, UserCircle, CheckCircle, AlertCircle, Clock, Loader2, ShieldAlert } from "lucide-react";
-import Link from "next/link";
-import { useAuth } from "@/hooks/use-auth";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react"; // Added React import
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { MemberRegistrationData } from "@/types";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare } from "lucide-react";
+import Link from "next/link";
 
 const quickActionsMember = [
   { label: "Ajukan Fasilitas Baru", href: "/member/facilities/apply", icon: DollarSign },
@@ -28,51 +29,47 @@ export default function MemberDashboardPage() {
   const [memberLoading, setMemberLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading) {
-      if (user) {
-        if (user.role !== 'member') {
-          if (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas') {
-            router.push('/admin/dashboard');
-          } else {
-            // For any other role not member or admin, redirect to home or a more appropriate page
-            router.push('/');
-          }
-          // No need to fetch member data if not a member
-          setMemberLoading(false); 
-          return;
-        }
-
-        // User is a member, proceed to fetch member data
-        if (user.uid) {
-            setMemberLoading(true); // Start loading member data
-            const fetchMemberData = async () => {
-              try {
-                const memberDocRef = doc(db, "members", user.uid);
-                const memberDocSnap = await getDoc(memberDocRef);
-                if (memberDocSnap.exists()) {
-                  setMemberData(memberDocSnap.data() as MemberRegistrationData);
-                } else {
-                  console.warn("Member data not found in Firestore for UID:", user.uid);
-                  setMemberData(null); // Explicitly set to null if not found
-                }
-              } catch (err) {
-                console.error("Error fetching member data:", err);
-                setMemberData(null); // Set to null on error
-              } finally {
-                setMemberLoading(false); // Stop loading member data
-              }
-            };
-            fetchMemberData();
+    if (!authLoading && user) {
+      if (user.role !== 'member') {
+        if (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas') {
+          router.push('/admin/dashboard');
         } else {
-            console.warn("User object present, but UID is missing for member data fetch.");
-            setMemberData(null);
-            setMemberLoading(false);
+          router.push('/'); // Fallback for unexpected roles
         }
-      } else {
-        // No user after auth loading, redirect to login
-        router.push('/login');
-        setMemberLoading(false); // Ensure member loading stops
+        setMemberLoading(false); // Stop member loading if not a member
+        return;
       }
+
+      // User is a member, proceed to fetch member data
+      if (user.uid) {
+        setMemberLoading(true); // Start loading member data
+        const fetchMemberData = async () => {
+          try {
+            const memberDocRef = doc(db, "members", user.uid);
+            const memberDocSnap = await getDoc(memberDocRef);
+            if (memberDocSnap.exists()) {
+              setMemberData(memberDocSnap.data() as MemberRegistrationData);
+            } else {
+              console.warn("Member data not found in Firestore for UID:", user.uid);
+              setMemberData(null);
+            }
+          } catch (err) {
+            console.error("Error fetching member data:", err);
+            setMemberData(null); // Set to null on error
+          } finally {
+            setMemberLoading(false); // Stop loading member data
+          }
+        };
+        fetchMemberData();
+      } else {
+        console.warn("User object present, but UID is missing for member data fetch.");
+        setMemberData(null);
+        setMemberLoading(false);
+      }
+    } else if (!authLoading && !user) {
+      // No user after auth loading, redirect to login
+      router.push('/login');
+      setMemberLoading(false); // Ensure member loading stops
     }
   }, [user, authLoading, router]);
 
@@ -87,8 +84,7 @@ export default function MemberDashboardPage() {
   }
 
   if (!user) {
-    // This case should ideally be handled by AppLayout or the useEffect above,
-    // but as a fallback during the brief period before redirect or if useEffect hasn't run.
+    // This case is primarily for the period before useEffect redirects
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -110,31 +106,27 @@ export default function MemberDashboardPage() {
 
   const memberName = user.displayName || user.email || "Anggota Koperasi";
 
-  // Welcome section is defined early, to be used even if memberData is loading/failed
   const welcomeSection = (
-    <>
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
-      </div>
-      <Alert variant="default" className="shadow">
-        <UserCircle className="h-5 w-5 text-primary" />
-        <AlertTitle className="font-semibold text-lg text-accent">Selamat Datang, {memberName}!</AlertTitle>
-        <AlertDescription>
-          {memberLoading
-            ? "Kami sedang menyiapkan detail keanggotaan Anda. Mohon tunggu sebentar..."
-            : memberData
-              ? "Berikut adalah ringkasan informasi dan layanan untuk Anda."
-              : "Terjadi kesalahan saat memuat detail akun Anda dari server." 
-          }
-        </AlertDescription>
-      </Alert>
-    </>
+    <Alert variant="default" className="shadow">
+      <UserCircle className="h-5 w-5 text-primary" />
+      <AlertTitle className="font-semibold text-lg text-accent">Selamat Datang, {memberName}!</AlertTitle>
+      <AlertDescription>
+        {memberLoading
+          ? "Kami sedang menyiapkan detail keanggotaan Anda. Mohon tunggu sebentar..."
+          : memberData
+            ? "Berikut adalah ringkasan informasi dan layanan untuk Anda."
+            : "Terjadi kesalahan saat memuat detail akun Anda dari server."
+        }
+      </AlertDescription>
+    </Alert>
   );
 
-  // If member-specific data is still loading, show welcome + loader for member data
-  if (memberLoading && user.role === 'member') { // Check role again to be safe
+  if (memberLoading && user.role === 'member') { // Ensure user role check for this loading state
     return (
       <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+        </div>
         {welcomeSection}
         <div className="flex flex-col items-center justify-center py-10 space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -144,26 +136,7 @@ export default function MemberDashboardPage() {
     );
   }
 
-  // If member loading is done, user is a member, but memberData is still null (error case)
-  if (!memberData && !memberLoading && user.role === 'member') {
-    return (
-      <div className="space-y-8">
-        {welcomeSection}
-        <Alert variant="destructive" className="shadow-lg">
-            <ShieldAlert className="h-5 w-5" />
-            <AlertTitle className="font-semibold text-xl">Terjadi Kesalahan Server</AlertTitle>
-            <AlertDescription>
-                Saat ini kami mengalami kendala dalam mengambil data keanggotaan Anda. Tim kami sedang berupaya memperbaikinya. Mohon coba beberapa saat lagi atau hubungi dukungan. Fitur ini akan segera berfungsi kembali.
-            </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  // At this point, user is a member, authLoading is false, memberLoading is false, and memberData should exist.
-  // If memberData is somehow still null here, it means an unexpected state, but the !memberData check above should have caught it.
-  // We proceed assuming memberData is available.
-
+  // Initialize variables for member status display
   let statusIcon: React.ReactNode = null;
   let statusColorClass: string = "";
   let statusText: string = "";
@@ -177,20 +150,36 @@ export default function MemberDashboardPage() {
 
     try {
         if (memberData.registrationTimestamp) {
-            let dateValue = (memberData.registrationTimestamp as any).seconds ? 
-                            new Date((memberData.registrationTimestamp as any).seconds * 1000) :
-                            new Date(memberData.registrationTimestamp as any);
+            let dateValue: Date | null = null;
+            // Attempt to parse if it's a string (ISO, or common date string)
+            if (typeof memberData.registrationTimestamp === 'string') {
+                dateValue = new Date(memberData.registrationTimestamp);
+            } 
+            // Check if it's a Firestore Timestamp-like object (common issue)
+            else if (typeof memberData.registrationTimestamp === 'object' && 
+                       memberData.registrationTimestamp !== null && 
+                       'seconds' in memberData.registrationTimestamp && 
+                       typeof (memberData.registrationTimestamp as any).seconds === 'number') {
+                dateValue = new Date((memberData.registrationTimestamp as any).seconds * 1000);
+            } 
+            // Check if it's already a Date object
+            else if (memberData.registrationTimestamp instanceof Date) {
+                 dateValue = memberData.registrationTimestamp as Date;
+            }
 
-            if (!isNaN(dateValue.getTime())) {
+            if (dateValue && !isNaN(dateValue.getTime())) {
                 registrationDateFormatted = dateValue.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
             } else {
                 console.warn("Invalid or unparseable registrationTimestamp:", memberData.registrationTimestamp);
+                registrationDateFormatted = 'Format tanggal tidak valid';
             }
+        } else {
+          registrationDateFormatted = 'Tanggal tidak tersedia';
         }
     } catch (e) {
         console.error("Error formatting registrationDate:", e);
+        registrationDateFormatted = 'Error format tanggal';
     }
-
 
     switch (memberStatus) {
       case 'approved':
@@ -226,14 +215,37 @@ export default function MemberDashboardPage() {
         statusColorClass = "text-gray-700 bg-gray-100 border-gray-300";
         statusText = `Status: ${memberStatus || 'Tidak Diketahui'}`;
     }
+  } else if (!memberLoading && user.role === 'member' && !memberData) {
+    // This specific case: user is a member, loading is done, but memberData is still null (error fetching from Firestore)
+     return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+        </div>
+        {welcomeSection} {/* welcomeSection will show "Terjadi kesalahan saat memuat detail..." */}
+        <Alert variant="destructive" className="shadow-lg">
+            <ShieldAlert className="h-5 w-5" />
+            <AlertTitle className="font-semibold text-xl">Terjadi Kesalahan Server</AlertTitle>
+            <AlertDescription>
+                Saat ini kami mengalami kendala dalam mengambil data keanggotaan Anda. Tim kami sedang berupaya memperbaikinya. Mohon coba beberapa saat lagi atau hubungi dukungan. Fitur ini akan segera berfungsi kembali.
+            </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
+  // Explicit semicolon before the final return to absolutely ensure JS mode is exited.
+  ;
 
   // The main return for a successfully loaded member dashboard
-  return <div className="space-y-8">
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Anggota</h1>
+      </div>
       {welcomeSection}
 
       {/* Status Keanggotaan Card */}
-      {memberData && ( // Only render if memberData is available
+      {memberData && (
         <Card className="shadow-lg border">
           <CardHeader>
             <CardTitle className="text-xl font-headline text-accent">Status Keanggotaan Anda</CardTitle>
@@ -276,12 +288,15 @@ export default function MemberDashboardPage() {
           <Card className="shadow-lg border">
             <CardHeader>
               <CardTitle className="text-xl font-headline text-accent">Notifikasi & Aktivitas Terkini</CardTitle>
-            </Header>
+            </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">Belum ada notifikasi atau aktivitas terbaru.</p>
             </CardContent>
           </Card>
         </>
       )}
-    </div>;
+    </div>
+  );
 }
+
+    
