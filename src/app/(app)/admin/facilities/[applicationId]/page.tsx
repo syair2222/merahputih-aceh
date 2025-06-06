@@ -11,14 +11,17 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star } from 'lucide-react';
-import type { FacilityApplicationData } from '@/types';
-import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@/types'; 
+import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star, CalendarDays } from 'lucide-react';
+import type { FacilityApplicationData, RequestedRecommendation } from '@/types';
+import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@/types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { FormLabel } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
+
 
 // Re-define statusDisplay if not exported from types
 const localStatusDisplay: Record<FacilityApplicationData['status'], string> = {
@@ -58,10 +61,20 @@ const RecommendationStars: React.FC<{ count: number }> = ({ count }) => {
           )}
         />
       ))}
-      <span className="ml-2 text-sm text-muted-foreground">({count} rekomendasi)</span>
+      <span className="ml-2 text-sm text-muted-foreground">({count} rekomendasi disetujui)</span>
     </div>
   );
 };
+
+const getRecommendationStatusBadge = (status: RequestedRecommendation['status']) => {
+    switch (status) {
+        case 'approved': return <Badge className="bg-green-500 text-white">Disetujui</Badge>;
+        case 'rejected': return <Badge variant="destructive">Ditolak</Badge>;
+        case 'pending': return <Badge variant="secondary">Menunggu</Badge>;
+        default: return <Badge variant="outline">{status}</Badge>;
+    }
+};
+
 
 export default function AdminFacilityApplicationDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -90,11 +103,18 @@ export default function AdminFacilityApplicationDetailPage() {
 
       if (appDocSnap.exists()) {
         const appData = appDocSnap.data() as Omit<FacilityApplicationData, 'id'>;
+        
+        const enrichedRequestedRecommendations = (appData.requestedRecommendations || []).map(rec => ({
+            ...rec,
+            decisionDate: (rec.decisionDate as Timestamp)?.toDate() // Convert Firestore Timestamp
+        }));
+
         setApplication({
           id: appDocSnap.id,
           ...appData,
           applicationDate: (appData.applicationDate as Timestamp)?.toDate(),
           decisionDate: (appData.decisionDate as Timestamp)?.toDate(),
+          requestedRecommendations: enrichedRequestedRecommendations,
         });
         setAdminDecisionComment(appData.adminComments || '');
       } else {
@@ -267,24 +287,35 @@ export default function AdminFacilityApplicationDetailPage() {
                 <Users className="mr-2 h-5 w-5" /> Informasi Rekomendasi Anggota
             </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
              <DetailItem 
                 label="Kekuatan Rekomendasi Komunitas" 
                 value={<RecommendationStars count={application.recommendationCount || 0} />} 
              />
+            <Separator />
+            <h4 className="text-md font-semibold text-foreground">Detail Perekomen:</h4>
             {application.requestedRecommendations && application.requestedRecommendations.length > 0 ? (
-                <>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Anggota yang Diminta Rekomendasi:</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                        {application.requestedRecommendations.map(rec => (
-                            <li key={rec.memberId} className="text-sm">
-                                {rec.memberName} (ID: {rec.memberId.substring(0,6)}...) - Status: <Badge variant={rec.status === 'approved' ? 'default' : rec.status === 'rejected' ? 'destructive' : 'secondary'} className={rec.status === 'approved' ? 'bg-green-500 text-white' : rec.status === 'rejected' ? 'bg-red-500 text-white' : ''}>{rec.status}</Badge>
-                            </li>
-                        ))}
-                    </ul>
-                </>
+                <div className="space-y-3">
+                    {application.requestedRecommendations.map((rec, index) => (
+                        <div key={index} className="p-3 border rounded-md bg-muted/30">
+                            <div className="flex justify-between items-center">
+                                <p className="font-medium text-foreground">{rec.memberName} (ID: {rec.memberId.substring(0,6)}...)</p>
+                                {getRecommendationStatusBadge(rec.status)}
+                            </div>
+                            {rec.comment && (
+                                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">Komentar: {rec.comment}</p>
+                            )}
+                            {rec.decisionDate && (
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                                    <CalendarDays className="mr-1 h-3 w-3" />
+                                    Diputuskan: {rec.decisionDate instanceof Date ? format(rec.decisionDate, 'PPP p', { locale: localeID }) : 'N/A'}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
             ) : (
-                 <p className="text-muted-foreground text-sm">Tidak ada permintaan rekomendasi atau data rekomendasi yang diterima untuk pengajuan ini.</p>
+                 <p className="text-muted-foreground text-sm">Tidak ada anggota yang diminta rekomendasi atau belum ada yang memberikan keputusan.</p>
             )}
              <Alert variant="default" className="mt-4 bg-blue-50 border-blue-300 text-blue-700">
                 <Info className="h-5 w-5 text-blue-600" />
