@@ -17,6 +17,7 @@ import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { FormLabel } from '@/components/ui/form'; // Added FormLabel import
 
 // Re-define statusDisplay if not exported from types
 const localStatusDisplay: Record<FacilityApplicationData['status'], string> = {
@@ -92,7 +93,7 @@ export default function AdminFacilityApplicationDetailPage() {
     }
   }, [user, authLoading, router, fetchApplication]);
 
-  const handleDecision = async (newStatus: 'approved' | 'rejected' | 'requires_correction') => {
+  const handleDecision = async (newStatus: 'approved' | 'rejected' | 'requires_correction' | 'completed') => {
     if (!application || !user) return;
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminDecisionComment.trim()) {
         toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive"});
@@ -288,3 +289,4 @@ export default function AdminFacilityApplicationDetailPage() {
     </div>
   );
 }
+
