@@ -6,15 +6,15 @@ import { useAuth } from '@/hooks/use-auth';
 import { Home, UserPlus, LogIn, LayoutDashboard, LogOut, Info, Menu, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react';
 
 export default function AppNavbar() {
   const { user, logout, loading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false); // State for client-side rendering
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true); // Set to true after component mounts on client
+    setIsClient(true);
   }, []);
 
   const getInitials = (name: string | null | undefined) => {
@@ -79,10 +79,15 @@ export default function AppNavbar() {
                 <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
               </div>
             ) : (
-              // Render null initially on the client to prevent mismatch.
-              // The server will render its version, and the client will initially render this simple content.
-              // After hydration, `isClient` becomes true, and the correct content is rendered on the client.
-              null
+              // Render a simple, consistent placeholder or null during SSR / pre-hydration
+              // This helps match the server output if it's rendering a simpler version,
+              // or if the server itself renders null for this part due to `isClient` logic.
+              // An empty div or a specific height div can also prevent layout shifts.
+              // For now, `null` is the safest if the server is expected to render nothing here initially.
+              <div className="flex flex-col leading-tight" style={{ visibility: 'hidden' }}>
+                 <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
+                 <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
+              </div>
             )}
           </a>
         </Link>
