@@ -52,8 +52,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    // This state should be very brief as useEffect above will redirect.
-    // Or if the redirect fails for some reason, this is a fallback.
      return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
             <Alert variant="destructive" className="max-w-md">
@@ -71,12 +69,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
   const isMember = user?.role === 'member';
 
-  // Common items are now only for admin or as a base
-  const commonMenuItems = [
-    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
-    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
-  ];
-
   const adminMenuItems = [
     { href: '/admin/dashboard', label: 'Dasbor Admin', icon: LayoutDashboard },
     { href: '/admin/members', label: 'Manajemen Anggota', icon: UserCircle },
@@ -84,9 +76,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
     { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
-    ...commonMenuItems,
+    { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+    { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
+  // Urutan menu anggota sesuai permintaan terakhir
   const memberMenuItems = [
     { href: '/member/dashboard', label: 'Dasbor Anggota', icon: LayoutDashboard },
     { href: '/member/messages', label: 'Pesan & Notifikasi', icon: MessageSquare },
@@ -94,26 +88,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     { href: '/member/facilities/history', label: 'Riwayat Pengajuan', icon: History }, 
     { href: '/member/facilities/reports', label: 'Laporan Usaha', icon: FileText },
     { href: '/member/announcements', label: 'Pengumuman Koperasi', icon: Megaphone },
-    // Explicitly add Profile and Settings here for members to control order
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
   let currentMenuItems = []; 
-  if (user) {
-    if (isAdmin) {
-      currentMenuItems = adminMenuItems;
-    } else if (isMember) {
-      currentMenuItems = memberMenuItems;
-    } else {
-      // Fallback for prospective_member or other roles - can redirect or show limited menu
-      // For now, redirecting to home is handled by individual pages if role not matched
-      // Or show a very basic menu if needed:
-      currentMenuItems = [
-        { href: '/profile', label: 'Profil Saya', icon: UserCircle },
-        { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
-      ];
-    }
+  if (isAdmin) {
+    currentMenuItems = adminMenuItems;
+  } else if (isMember) {
+    currentMenuItems = memberMenuItems;
+  } else {
+    // Fallback untuk prospective_member atau peran lain/tidak terdefinisi
+    currentMenuItems = [
+      { href: '/profile', label: 'Profil Saya', icon: UserCircle },
+      { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
+    ];
   }
 
 
