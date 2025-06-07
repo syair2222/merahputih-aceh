@@ -65,10 +65,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
+  const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas' || user?.role === 'bank_partner_admin';
   const isAdminUtama = user?.role === 'admin_utama';
   const isMember = user?.role === 'member';
-  const isBankAdmin = user?.role === 'bank_partner_admin';
+  const isBankAdmin = user?.role === 'bank_partner_admin'; // This variable remains, but isAdmin will take precedence for menu items if bank_partner_admin is in isAdmin.
   const isAgencyAdmin = user?.role === 'related_agency_admin';
 
   const adminMenuItems = [
@@ -120,7 +120,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     currentMenuItems = adminMenuItems;
   } else if (isMember) {
     currentMenuItems = memberMenuItems;
-  } else if (isBankAdmin) {
+  } else if (isBankAdmin) { // This condition will now likely not be met if bank_partner_admin is part of isAdmin
     currentMenuItems = bankAdminMenuItems;
   } else if (isAgencyAdmin) {
     currentMenuItems = agencyAdminMenuItems;
@@ -187,3 +187,4 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
