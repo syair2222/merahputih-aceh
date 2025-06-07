@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowLeft, ShieldAlert, Loader2, FilePlus } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import TransactionForm from '@/components/finance/transaction-form'; // Import the new form
 
 export default function AdminNewTransactionPage() {
   const { user, loading } = useAuth();
@@ -20,7 +21,7 @@ export default function AdminNewTransactionPage() {
     if (!loading && user && !allowedRoles.includes(user.role)) {
       router.push('/admin/dashboard');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, allowedRoles]);
 
   if (loading) {
     return (
@@ -49,7 +50,7 @@ export default function AdminNewTransactionPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <FilePlus className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-headline font-bold text-primary">Catat Transaksi Baru</h1>
+          <h1 className="text-3xl font-headline font-bold text-primary">Catat Transaksi Keuangan Baru</h1>
         </div>
         <Button onClick={() => router.push('/admin/dashboard')} variant="outline">
           <ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Dasbor Admin
@@ -58,17 +59,11 @@ export default function AdminNewTransactionPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-accent">Segera Hadir</CardTitle>
-          <CardDescription>Fitur untuk mencatat transaksi keuangan baru koperasi.</CardDescription>
+          <CardTitle className="text-xl font-headline text-accent">Formulir Entri Jurnal</CardTitle>
+          <CardDescription>Masukkan detail transaksi keuangan. Pastikan total debit dan kredit seimbang.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Di sini Anda akan dapat menginput detail transaksi seperti tanggal, deskripsi, akun debit, akun kredit, dan jumlah.
-            Fitur ini sedang dalam tahap pengembangan. Terima kasih atas kesabaran Anda.
-          </p>
-          <div className="mt-6 flex justify-center">
-            <FilePlus className="h-32 w-32 text-muted opacity-20" />
-          </div>
+          <TransactionForm />
         </CardContent>
       </Card>
     </div>
