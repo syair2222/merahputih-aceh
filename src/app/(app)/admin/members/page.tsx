@@ -80,7 +80,7 @@ export default function AdminMembersPage() {
 
 
   const fetchMembers = useCallback(async () => {
-    if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+    if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas' || adminUser.role === 'bank_partner_admin')) {
        setPageLoading(false);
        return;
     }
@@ -113,7 +113,7 @@ export default function AdminMembersPage() {
   useEffect(() => {
     if (authLoading) return; 
 
-    if (adminUser && (adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+    if (adminUser && (adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas' || adminUser.role === 'bank_partner_admin')) {
         fetchMembers();
     } else if (adminUser) {
         router.push('/'); 
@@ -160,7 +160,7 @@ export default function AdminMembersPage() {
     );
   }
 
-  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas' || adminUser.role === 'bank_partner_admin')) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
