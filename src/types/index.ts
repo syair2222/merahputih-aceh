@@ -192,13 +192,18 @@ export interface FacilityApplicationData {
 
   applicationDate: any; // Firestore Timestamp
   status: 'pending_review' | 'pending_approval' | 'approved' | 'rejected' | 'completed' | 'cancelled_by_member' | 'requires_correction';
-  adminComments?: string;
-  decisionMaker?: string;
-  decisionDate?: any;
+  adminComments?: string; // Comments from cooperative admin
+  decisionMaker?: string; // Cooperative admin who made the decision
+  decisionDate?: any; // Date of cooperative admin decision
   lastUpdated?: any;
 
   requestedRecommendations?: RequestedRecommendation[];
   recommendationCount?: number;
+
+  bankDecisionStatus?: 'pending' | 'approved' | 'rejected'; // Decision from bank
+  bankComments?: string; // Comments from bank
+  bankDecisionBy?: string; // UID or name of bank personnel
+  bankDecisionDate?: any; // Date of bank decision
 }
 
 export const statusDisplay: Record<FacilityApplicationData['status'], string> = {
@@ -234,3 +239,4 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   updatedAt?: any; // Firestore Timestamp for user document updates
   updatedBy?: string; // UID of admin who last updated the user document
 }
+
