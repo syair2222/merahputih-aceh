@@ -11,29 +11,27 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star, CalendarDays } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star, CalendarDays, Building } from 'lucide-react';
 import type { FacilityApplicationData, RequestedRecommendation } from '@/types';
-import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay } from '@/types';
+import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay as adminStatusDisplayKoperasi } from '@/types';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { Label } from '@/components/ui/label'; // Changed from FormLabel
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
-
-// Re-define statusDisplay if not exported from types
-const localStatusDisplay: Record<FacilityApplicationData['status'], string> = {
-  pending_review: 'Menunggu Review',
-  pending_approval: 'Menunggu Persetujuan',
-  approved: 'Disetujui',
-  rejected: 'Ditolak',
+// Status display for Koperasi's decision
+const localStatusDisplayKoperasi: Record<FacilityApplicationData['status'], string> = {
+  pending_review: 'Menunggu Review Koperasi',
+  pending_approval: 'Menunggu Persetujuan Koperasi',
+  approved: 'Disetujui Koperasi',
+  rejected: 'Ditolak Koperasi',
   completed: 'Selesai',
   cancelled_by_member: 'Dibatalkan Anggota',
-  requires_correction: 'Perlu Perbaikan'
+  requires_correction: 'Perlu Perbaikan (Koperasi)'
 };
-
 
 const DetailItem: React.FC<{ label: string; value?: string | React.ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
   <div className={`mb-3 ${fullWidth ? "col-span-2" : ""}`}>
@@ -75,7 +73,6 @@ const getRecommendationStatusBadge = (status: RequestedRecommendation['status'])
     }
 };
 
-
 export default function AdminFacilityApplicationDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -86,8 +83,11 @@ export default function AdminFacilityApplicationDetailPage() {
   const [application, setApplication] = useState<FacilityApplicationData | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [adminDecisionComment, setAdminDecisionComment] = useState('');
-  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+  const [adminDecisionComment, setAdminDecisionComment] = useState(''); // For Koperasi Admin
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false); // For Koperasi Admin
+
+  const [bankAdminDecisionComment, setBankAdminDecisionComment] = useState(''); // For Bank Admin
+  const [isSubmittingBankDecision, setIsSubmittingBankDecision] = useState(false); // For Bank Admin
 
   const fetchApplication = useCallback(async () => {
     if (!applicationId) {
@@ -106,17 +106,25 @@ export default function AdminFacilityApplicationDetailPage() {
         
         const enrichedRequestedRecommendations = (appData.requestedRecommendations || []).map(rec => ({
             ...rec,
-            decisionDate: (rec.decisionDate as Timestamp)?.toDate() // Convert Firestore Timestamp
+            decisionDate: (rec.decisionDate as Timestamp)?.toDate()
         }));
 
         setApplication({
           id: appDocSnap.id,
           ...appData,
           applicationDate: (appData.applicationDate as Timestamp)?.toDate(),
-          decisionDate: (appData.decisionDate as Timestamp)?.toDate(),
+          decisionDate: (appData.decisionDate as Timestamp)?.toDate(), // Koperasi decision date
+          bankDecisionTimestamp: appData.bankDecisionTimestamp ? (appData.bankDecisionTimestamp as Timestamp).toDate() : undefined, // Bank decision date
           requestedRecommendations: enrichedRequestedRecommendations,
         });
         setAdminDecisionComment(appData.adminComments || '');
+        // Initialize bank comment if bank is about to make a decision or has made one with 'pending' status (if such flow exists)
+        if (appData.bankDecisionStatus === 'pending' && appData.bankComments) {
+            setBankAdminDecisionComment(appData.bankComments);
+        } else {
+            setBankAdminDecisionComment(''); // Reset if not applicable
+        }
+
       } else {
         setError('Data pengajuan fasilitas tidak ditemukan.');
       }
@@ -138,12 +146,12 @@ export default function AdminFacilityApplicationDetailPage() {
     }
   }, [user, authLoading, router, fetchApplication]);
 
+  // For Koperasi Admin Decision
   const handleDecision = async (newStatus: 'approved' | 'rejected' | 'requires_correction' | 'completed') => {
     if (!application || !user) return;
     
-    // Bank Partner Admin cannot make decisions on this page
     if (user.role === 'bank_partner_admin') {
-        toast({ title: "Aksi Tidak Diizinkan", description: "Admin Bank Mitra tidak dapat mengubah status pengajuan ini.", variant: "destructive"});
+        toast({ title: "Aksi Tidak Diizinkan", description: "Admin Bank Mitra tidak dapat mengubah status pengajuan dari sisi koperasi.", variant: "destructive"});
         return;
     }
 
@@ -162,13 +170,42 @@ export default function AdminFacilityApplicationDetailPage() {
             decisionDate: serverTimestamp(),
             lastUpdated: serverTimestamp(),
         });
-        toast({ title: "Keputusan Disimpan", description: `Pengajuan telah diubah statusnya menjadi ${localStatusDisplay[newStatus]}.`});
-        fetchApplication(); // Refresh data
+        toast({ title: "Keputusan Koperasi Disimpan", description: `Pengajuan telah diubah statusnya menjadi ${localStatusDisplayKoperasi[newStatus]}.`});
+        fetchApplication(); 
     } catch (err) {
-        console.error("Error updating application status:", err);
-        toast({ title: "Gagal Menyimpan Keputusan", description: "Terjadi kesalahan saat memproses keputusan.", variant: "destructive"});
+        console.error("Error updating application status (Koperasi):", err);
+        toast({ title: "Gagal Menyimpan Keputusan Koperasi", description: "Terjadi kesalahan saat memproses keputusan.", variant: "destructive"});
     } finally {
         setIsSubmittingDecision(false);
+    }
+  };
+
+  // For Bank Partner Admin Decision
+  const handleBankDecision = async (newBankStatus: 'approved' | 'rejected') => {
+    if (!application || !user || user.role !== 'bank_partner_admin') return;
+
+    if (newBankStatus === 'rejected' && !bankAdminDecisionComment.trim()) {
+        toast({ title: "Komentar Wajib", description: "Mohon isi alasan jika bank menolak pengajuan.", variant: "destructive"});
+        return;
+    }
+    
+    setIsSubmittingBankDecision(true);
+    try {
+        const appDocRef = doc(db, 'facilityApplications', application.id!);
+        await updateDoc(appDocRef, {
+            bankDecisionStatus: newBankStatus,
+            bankComments: bankAdminDecisionComment.trim(),
+            bankDecisionMaker: user.displayName || user.email,
+            bankDecisionTimestamp: serverTimestamp(),
+            lastUpdated: serverTimestamp(),
+        });
+        toast({ title: "Keputusan Bank Disimpan", description: `Keputusan bank telah disimpan sebagai '${newBankStatus === 'approved' ? 'Disetujui Bank' : 'Ditolak Bank'}'.`});
+        fetchApplication(); // Refresh data
+    } catch (err) {
+        console.error("Error updating bank decision:", err);
+        toast({ title: "Gagal Menyimpan Keputusan Bank", description: "Terjadi kesalahan.", variant: "destructive"});
+    } finally {
+        setIsSubmittingBankDecision(false);
     }
   };
   
@@ -185,7 +222,6 @@ export default function AdminFacilityApplicationDetailPage() {
       default: return 'bg-gray-400';
     }
   };
-
 
   if (authLoading || pageLoading) {
     return (
@@ -228,8 +264,26 @@ export default function AdminFacilityApplicationDetailPage() {
   }
 
   const appDateFormatted = application.applicationDate instanceof Date ? application.applicationDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tidak diketahui';
-  const decisionDateFormatted = application.decisionDate instanceof Date ? application.decisionDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
-  const canMakeDecision = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
+  const koperasiDecisionDateFormatted = application.decisionDate instanceof Date ? application.decisionDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  const bankDecisionTimestampFormatted = application.bankDecisionTimestamp instanceof Date ? application.bankDecisionTimestamp.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  
+  const canKoperasiAdminMakeDecision = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
+  
+  // Conditions for bank_partner_admin to see the decision form
+  const showBankDecisionForm = user?.role === 'bank_partner_admin' &&
+    application.targetEntityType === 'BANK_MITRA' &&
+    application.status === 'approved' && // Koperasi must have approved
+    (!application.bankDecisionStatus || application.bankDecisionStatus === 'pending'); // Bank hasn't made a final decision
+
+  // Condition for bank_partner_admin to see that a bank decision has already been made
+  const bankDecisionAlreadyMade = user?.role === 'bank_partner_admin' &&
+    application.targetEntityType === 'BANK_MITRA' &&
+    application.status === 'approved' &&
+    application.bankDecisionStatus && application.bankDecisionStatus !== 'pending';
+
+  // Condition for bank_partner_admin where the application is not relevant or not ready for bank action
+  const bankCannotActYet = user?.role === 'bank_partner_admin' &&
+    (application.targetEntityType !== 'BANK_MITRA' || application.status !== 'approved');
 
 
   return (
@@ -247,7 +301,7 @@ export default function AdminFacilityApplicationDetailPage() {
               <CardDescription>Nomor Anggota: {application.memberIdNumber || 'N/A'} | Tgl. Pengajuan: {appDateFormatted}</CardDescription>
             </div>
             <Badge className={`text-white text-lg px-3 py-1 ${getStatusBadgeColor(application.status)}`}>
-              {localStatusDisplay[application.status] || application.status}
+              {localStatusDisplayKoperasi[application.status] || application.status}
             </Badge>
           </div>
         </CardHeader>
@@ -263,6 +317,10 @@ export default function AdminFacilityApplicationDetailPage() {
           <DetailItem label="Pernah Mengajukan Sebelumnya?" value={application.hasAppliedBefore} />
           {application.hasAppliedBefore === 'Ya' && <DetailItem label="Detail Pengajuan Sebelumnya" value={application.previousApplicationDetails} fullWidth />}
           <DetailItem label="Catatan Tambahan dari Anggota" value={application.additionalNotes} fullWidth />
+          <DetailItem label="Ditujukan Kepada" value={application.targetEntityType?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Koperasi Internal'} />
+          {(application.targetEntityType === 'BANK_MITRA' || application.targetEntityType === 'DINAS_TERKAIT') && application.targetEntityName && (
+            <DetailItem label={`Nama ${application.targetEntityType === 'BANK_MITRA' ? 'Bank' : 'Dinas'}`} value={application.targetEntityName} />
+          )}
         </CardContent>
       </Card>
 
@@ -335,24 +393,25 @@ export default function AdminFacilityApplicationDetailPage() {
         </CardContent>
       </Card>
       
+      {/* Koperasi Admin Decision Section */}
       <Card>
-        <CardHeader><CardTitle className="text-xl font-headline text-accent flex items-center"><MessageSquare className="mr-2 h-5 w-5" /> Keputusan & Komentar Admin</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-xl font-headline text-accent flex items-center"><MessageSquare className="mr-2 h-5 w-5" /> Keputusan & Komentar Admin Koperasi</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {application.status !== 'pending_review' && application.status !== 'pending_approval' && (
             <Alert variant={application.status === 'approved' || application.status === 'completed' ? 'default' : 'destructive'} className="bg-opacity-10">
               <AlertTitle className="font-semibold">
-                Keputusan Sebelumnya: {localStatusDisplay[application.status]}
+                Keputusan Koperasi: {localStatusDisplayKoperasi[application.status]}
                 {application.decisionMaker && ` oleh ${application.decisionMaker}`}
-                {decisionDateFormatted && ` pada ${decisionDateFormatted}`}
+                {koperasiDecisionDateFormatted && ` pada ${koperasiDecisionDateFormatted}`}
               </AlertTitle>
-              {application.adminComments && <AlertDescription>Komentar: {application.adminComments}</AlertDescription>}
+              {application.adminComments && <AlertDescription>Komentar Koperasi: {application.adminComments}</AlertDescription>}
             </Alert>
           )}
 
-          {(application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction') && canMakeDecision && (
+          {(application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction') && canKoperasiAdminMakeDecision && (
             <>
               <div>
-                <Label htmlFor="adminDecisionComment">Komentar / Alasan Keputusan (Wajib jika ditolak/minta perbaikan)</Label>
+                <Label htmlFor="adminDecisionComment">Komentar / Alasan Keputusan Koperasi (Wajib jika ditolak/minta perbaikan)</Label>
                 <Textarea
                   id="adminDecisionComment"
                   value={adminDecisionComment}
@@ -365,28 +424,28 @@ export default function AdminFacilityApplicationDetailPage() {
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Button onClick={() => handleDecision('approved')} variant="default" className="bg-green-600 hover:bg-green-700 text-white" disabled={isSubmittingDecision}>
-                  <CheckSquare className="mr-2 h-4 w-4" /> Setujui Pengajuan
+                  <CheckSquare className="mr-2 h-4 w-4" /> Setujui Pengajuan (Koperasi)
                 </Button>
                 <Button onClick={() => handleDecision('rejected')} variant="destructive" disabled={isSubmittingDecision}>
-                  <XSquare className="mr-2 h-4 w-4" /> Tolak Pengajuan
+                  <XSquare className="mr-2 h-4 w-4" /> Tolak Pengajuan (Koperasi)
                 </Button>
                 <Button onClick={() => handleDecision('requires_correction')} variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50" disabled={isSubmittingDecision}>
-                  <MessageSquare className="mr-2 h-4 w-4" /> Minta Perbaikan Data
+                  <MessageSquare className="mr-2 h-4 w-4" /> Minta Perbaikan Data (Koperasi)
                 </Button>
                  {isSubmittingDecision && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
               </div>
             </>
           )}
-           {(!canMakeDecision && (application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction')) && (
+           {(!canKoperasiAdminMakeDecision && (application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction')) && (
             <Alert variant="default">
                 <Info className="h-4 w-4" />
-                <AlertTitle>Mode Tampilan</AlertTitle>
+                <AlertTitle>Mode Tampilan (Keputusan Koperasi)</AlertTitle>
                 <AlertDescription>
-                   Peran Anda ({user?.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}) tidak memiliki wewenang untuk mengubah status pengajuan ini. Anda hanya dapat melihat detailnya.
+                   Peran Anda ({user?.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}) tidak memiliki wewenang untuk mengubah status pengajuan dari sisi koperasi ini. Anda hanya dapat melihat detailnya.
                 </AlertDescription>
              </Alert>
            )}
-           {(application.status === 'approved' && user?.role === 'admin_utama') && ( // Only allow admin_utama to mark as completed
+           {(application.status === 'approved' && user?.role === 'admin_utama') && ( 
             <Button onClick={() => handleDecision('completed')} variant="secondary" disabled={isSubmittingDecision}>
               Tandai Selesai
               {isSubmittingDecision && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
@@ -394,6 +453,84 @@ export default function AdminFacilityApplicationDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bank Partner Admin Decision Section */}
+      {showBankDecisionForm && (
+          <Card>
+            <CardHeader>
+                <CardTitle className="text-xl font-headline text-accent flex items-center">
+                <Building className="mr-2 h-5 w-5" /> Keputusan Anda (Bank Mitra)
+                </CardTitle>
+                <CardDescription>Pengajuan ini telah disetujui koperasi dan ditujukan ke bank Anda. Mohon berikan keputusan.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                <Label htmlFor="bankAdminDecisionComment">Komentar / Alasan Keputusan Bank (Wajib jika ditolak)</Label>
+                <Textarea
+                    id="bankAdminDecisionComment"
+                    value={bankAdminDecisionComment}
+                    onChange={(e) => setBankAdminDecisionComment(e.target.value)}
+                    placeholder="Tuliskan komentar atau alasan keputusan bank di sini..."
+                    rows={4}
+                    className="mt-1"
+                    disabled={isSubmittingBankDecision}
+                />
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                <Button onClick={() => handleBankDecision('approved')} variant="default" className="bg-green-600 hover:bg-green-700 text-white" disabled={isSubmittingBankDecision}>
+                    <CheckSquare className="mr-2 h-4 w-4" /> Setujui dari Bank
+                </Button>
+                <Button onClick={() => handleBankDecision('rejected')} variant="destructive" disabled={isSubmittingBankDecision}>
+                    <XSquare className="mr-2 h-4 w-4" /> Tolak dari Bank
+                </Button>
+                {isSubmittingBankDecision && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                </div>
+            </CardContent>
+          </Card>
+      )}
+
+      {/* Display existing bank decision if any AND bank is not currently able to make a new decision via the form */}
+      {application.bankDecisionStatus && application.bankDecisionStatus !== 'pending' && application.targetEntityType === 'BANK_MITRA' && (
+        <Card className="mt-6">
+        <CardHeader>
+            <CardTitle className="text-xl font-headline text-accent flex items-center">
+            <Building className="mr-2 h-5 w-5" /> Keputusan dari Bank Mitra
+            </CardTitle>
+        </CardHeader>
+        <CardContent>
+            <Alert variant={application.bankDecisionStatus === 'approved' ? 'default' : 'destructive'} className={application.bankDecisionStatus === 'approved' ? "bg-green-50 border-green-300" : ""}>
+            <AlertTitle className="font-semibold">
+                Keputusan Bank: {application.bankDecisionStatus === 'approved' ? 'Disetujui oleh Bank' : 'Ditolak oleh Bank'}
+                {application.bankDecisionMaker && ` oleh ${application.bankDecisionMaker}`}
+                {bankDecisionTimestampFormatted && ` pada ${bankDecisionTimestampFormatted}`}
+            </AlertTitle>
+            {application.bankComments && <AlertDescription>Komentar Bank: {application.bankComments}</AlertDescription>}
+            </Alert>
+        </CardContent>
+        </Card>
+      )}
+      
+      {/* Informative message for bank_partner_admin if they cannot act */}
+      {bankCannotActYet && !showBankDecisionForm && (
+        <Alert variant="default" className="mt-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Informasi untuk Bank Mitra</AlertTitle>
+            <AlertDescription>
+                Pengajuan ini tidak (atau belum) memenuhi syarat untuk keputusan bank Anda. Pastikan pengajuan ditujukan ke 'BANK_MITRA' dan telah disetujui oleh koperasi.
+            </AlertDescription>
+        </Alert>
+      )}
+
+      {bankDecisionAlreadyMade && !showBankDecisionForm && (
+         <Alert variant="default" className="mt-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Keputusan Bank Telah Dibuat</AlertTitle>
+            <AlertDescription>
+                Anda telah membuat keputusan untuk pengajuan ini. Status saat ini: {application.bankDecisionStatus === 'approved' ? 'Disetujui oleh Bank' : 'Ditolak oleh Bank'}.
+            </AlertDescription>
+        </Alert>
+      )}
+
     </div>
   );
 }
