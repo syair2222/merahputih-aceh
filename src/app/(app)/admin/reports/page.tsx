@@ -9,14 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as ShadTableFooter } from '@/components/ui/table';
 import { ArrowLeft, ShieldAlert, Loader2, BarChart3, Printer, AlertCircle, FileSpreadsheet, Scaling, CircleDollarSign, CalendarIcon } from 'lucide-react';
-import type { ChartOfAccountItem, UserProfile } from '@/types';
+import type { ChartOfAccountItem, UserProfile, Transaction, TransactionDetail } from '@/types';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, where, Timestamp, DocumentData } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isValid as isValidDate } from 'date-fns';
+import { format, isValid as isValidDate, endOfDay } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -43,8 +43,12 @@ interface BalanceSheetData {
   totalLiabilities: number;
   equityAccounts: Array<{ accountId: string; accountName: string; balance: number }>;
   totalEquityFromCoA: number;
-  netIncomeForBS: number; // Current period's net income
+  netIncomeForBS: number; 
   totalLiabilitiesAndEquity: number;
+}
+
+interface EnrichedTransaction extends Transaction {
+  details: TransactionDetail[];
 }
 
 
@@ -54,6 +58,9 @@ export default function AdminReportsPage() {
   const { toast } = useToast();
 
   const [allAccounts, setAllAccounts] = useState<ChartOfAccountItem[]>([]);
+  const [periodTransactions, setPeriodTransactions] = useState<EnrichedTransaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+
   const [trialBalanceData, setTrialBalanceData] = useState<TrialBalanceEntry[]>([]);
   const [totalDebitTB, setTotalDebitTB] = useState(0);
   const [totalCreditTB, setTotalCreditTB] = useState(0);
@@ -61,7 +68,8 @@ export default function AdminReportsPage() {
   const [incomeStatementData, setIncomeStatementData] = useState<IncomeStatementData | null>(null);
   const [balanceSheetData, setBalanceSheetData] = useState<BalanceSheetData | null>(null);
 
-  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true); // For initial account load
+  const [reportDataLoading, setReportDataLoading] = useState(false); // For subsequent period loads
   const [error, setError] = useState<string | null>(null);
   
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -73,7 +81,9 @@ export default function AdminReportsPage() {
 
   const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara', 'dinas', 'bank_partner_admin'];
 
-  const processFinancialData = useCallback((accounts: ChartOfAccountItem[]) => {
+  const processFinancialData = useCallback((accounts: ChartOfAccountItem[], transactionsForPeriod: EnrichedTransaction[]) => {
+    // For now, this function will still use cumulative account.balance.
+    // In future steps, it will be modified to use transactionsForPeriod for period-specific calculations.
     // --- Trial Balance Processing ---
     const processedTBData: TrialBalanceEntry[] = [];
     let currentTotalDebitTB = 0;
@@ -87,7 +97,7 @@ export default function AdminReportsPage() {
       if (account.normalBalance === 'DEBIT') {
         if (currentBalance >= 0) debitAmount = currentBalance;
         else creditAmount = Math.abs(currentBalance);
-      } else { // Normal Balance is KREDIT
+      } else { 
         if (currentBalance >= 0) creditAmount = currentBalance;
         else debitAmount = Math.abs(currentBalance);
       }
@@ -99,16 +109,16 @@ export default function AdminReportsPage() {
     setTotalDebitTB(currentTotalDebitTB);
     setTotalCreditTB(currentTotalCreditTB);
 
-    // --- Income Statement Processing ---
+    // --- Income Statement Processing (still cumulative for now) ---
     const revenues = accounts.filter(acc => acc.accountType === 'PENDAPATAN');
     const expenses = accounts.filter(acc => acc.accountType === 'BEBAN');
     
     const totalRevenue = revenues.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalExpenses = expenses.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    const netIncome = totalRevenue - totalExpenses; // For IS, positive balance for revenue is revenue, positive balance for expense is expense.
+    const netIncome = totalRevenue - totalExpenses; 
     setIncomeStatementData({ revenues, totalRevenue, expenses, totalExpenses, netIncome });
 
-    // --- Balance Sheet Processing ---
+    // --- Balance Sheet Processing (still cumulative for now) ---
     const assets = accounts.filter(acc => acc.accountType === 'ASET');
     const liabilities = accounts.filter(acc => acc.accountType === 'LIABILITAS');
     const equityAccounts = accounts.filter(acc => acc.accountType === 'EKUITAS');
@@ -116,10 +126,9 @@ export default function AdminReportsPage() {
     const totalAssets = assets.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalLiabilities = liabilities.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalEquityFromCoA = equityAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromCoA + netIncome; // netIncome is for the current period being reported
+    const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromCoA + netIncome;
     setBalanceSheetData({ assets, totalAssets, liabilities, totalLiabilities, equityAccounts, totalEquityFromCoA, netIncomeForBS: netIncome, totalLiabilitiesAndEquity });
 
-    // Update display period string
     if (startDate && endDate) {
       setDisplayPeriod(`Periode: ${format(startDate, "PPP", { locale: localeID })} - ${format(endDate, "PPP", { locale: localeID })}`);
     } else if (endDate) {
@@ -130,39 +139,76 @@ export default function AdminReportsPage() {
   }, [startDate, endDate]);
 
 
-  const fetchAllAccountsAndProcess = useCallback(async () => {
-    // Logic for fetching data based on startDate and endDate will be added here in a future step.
-    // For now, it still fetches all accounts.
-    setPageLoading(true);
+  const fetchReportData = useCallback(async (currentStartDate?: Date, currentEndDate?: Date) => {
+    setReportDataLoading(true);
     setError(null);
     try {
+      // 1. Fetch Chart of Accounts
       const accountsQuery = query(collection(db, 'chartOfAccounts'), orderBy('accountId', 'asc'));
-      const querySnapshot = await getDocs(accountsQuery);
-      const fetchedAccounts = querySnapshot.docs.map(docSnap => ({
+      const accountsSnapshot = await getDocs(accountsQuery);
+      const fetchedAccounts = accountsSnapshot.docs.map(docSnap => ({
         id: docSnap.id, ...docSnap.data()
       } as ChartOfAccountItem));
       setAllAccounts(fetchedAccounts);
-      processFinancialData(fetchedAccounts); // This will now use startDate and endDate for display purposes
+
+      // 2. Fetch Transactions for the period
+      setTransactionsLoading(true);
+      const transactionsRef = collection(db, 'transactions');
+      const qConstraints = [orderBy('transactionDate', 'asc')];
+
+      if (currentStartDate) {
+        qConstraints.push(where('transactionDate', '>=', Timestamp.fromDate(currentStartDate)));
+      }
+      if (currentEndDate) {
+        qConstraints.push(where('transactionDate', '<=', Timestamp.fromDate(endOfDay(currentEndDate))));
+      }
+      
+      const transactionsQuery = query(transactionsRef, ...qConstraints);
+      const transactionsSnapshot = await getDocs(transactionsQuery);
+      
+      const fetchedPeriodTransactions: EnrichedTransaction[] = [];
+      for (const txDoc of transactionsSnapshot.docs) {
+        const txData = { id: txDoc.id, ...txDoc.data() } as Transaction;
+        const detailsCollectionRef = collection(db, `transactions/${txDoc.id}/details`);
+        const detailsSnapshot = await getDocs(detailsCollectionRef);
+        const detailsData = detailsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as TransactionDetail));
+        
+        fetchedPeriodTransactions.push({
+          ...txData,
+          transactionDate: (txData.transactionDate as Timestamp)?.toDate ? (txData.transactionDate as Timestamp).toDate() : new Date(txData.transactionDate),
+          createdAt: (txData.createdAt as Timestamp)?.toDate ? (txData.createdAt as Timestamp).toDate() : new Date(txData.createdAt),
+          details: detailsData,
+        });
+      }
+      setPeriodTransactions(fetchedPeriodTransactions);
+      setTransactionsLoading(false);
+
+      // 3. Process data (for now, it will use cumulative balances from accounts)
+      processFinancialData(fetchedAccounts, fetchedPeriodTransactions);
+
     } catch (err) {
-      console.error("Error fetching accounts data:", err);
-      setError('Gagal memuat data akun.');
-      toast({ title: "Error", description: "Gagal memuat data akun untuk laporan.", variant: "destructive" });
+      console.error("Error fetching report data:", err);
+      setError('Gagal memuat data untuk laporan.');
+      toast({ title: "Error", description: "Gagal memuat data untuk laporan.", variant: "destructive" });
+      setTransactionsLoading(false);
     } finally {
-      setPageLoading(false);
+      setPageLoading(false); // Initial page load is done
+      setReportDataLoading(false); // Period-specific data load is done
     }
-  }, [toast, processFinancialData]); // Added processFinancialData to dependencies
+  }, [toast, processFinancialData]);
 
   useEffect(() => {
     if (!authLoading) {
       if (user && allowedRoles.includes(user.role as UserProfile['role'])) {
-        fetchAllAccountsAndProcess();
+        fetchReportData(startDate, endDate); // Fetch with current period on initial load or user change
       } else if (user) {
         router.push('/admin/dashboard');
       } else {
         router.push('/login');
       }
     }
-  }, [user, authLoading, router, fetchAllAccountsAndProcess, allowedRoles]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading, router]); // Removed fetchReportData from here to avoid loop, handle it with handleApplyPeriod and initial user load.
 
   const handleApplyPeriod = () => {
     if (startDate && endDate && startDate > endDate) {
@@ -173,14 +219,14 @@ export default function AdminReportsPage() {
         });
         return;
     }
-    fetchAllAccountsAndProcess();
+    fetchReportData(startDate, endDate);
   };
 
   const handlePrint = () => {
     window.print();
   };
 
-  if (authLoading || (pageLoading && allAccounts.length === 0 && !error)) {
+  if (authLoading || pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -200,7 +246,7 @@ export default function AdminReportsPage() {
 
   const renderTrialBalance = () => (
     <CardContent>
-      {trialBalanceData.length === 0 && !pageLoading && (<Alert><BarChart3 className="h-4 w-4" /><AlertTitle>Data Kosong</AlertTitle><AlertDescription>Belum ada data akun.</AlertDescription></Alert>)}
+      {trialBalanceData.length === 0 && !reportDataLoading && (<Alert><BarChart3 className="h-4 w-4" /><AlertTitle>Data Kosong</AlertTitle><AlertDescription>Belum ada data akun untuk periode ini.</AlertDescription></Alert>)}
       {trialBalanceData.length > 0 && (
         <>
           <Table>
@@ -357,8 +403,8 @@ export default function AdminReportsPage() {
               <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
             </PopoverContent>
           </Popover>
-          <Button onClick={handleApplyPeriod} className="w-full sm:w-auto">
-            <Loader2 className={`mr-2 h-4 w-4 ${pageLoading ? 'animate-spin' : 'hidden'}`} />
+          <Button onClick={handleApplyPeriod} className="w-full sm:w-auto" disabled={reportDataLoading || transactionsLoading}>
+            {(reportDataLoading || transactionsLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Terapkan Periode & Muat Laporan
           </Button>
         </CardContent>
@@ -382,14 +428,13 @@ export default function AdminReportsPage() {
                     </CardTitle>
                     <CardDescription>{displayPeriod}</CardDescription>
                 </div>
-                {/* Button to reload data for the *current* selected period was here, but apply button serves this purpose now */}
             </div>
           </CardHeader>
 
             {error && (<CardContent><Alert variant="destructive"><ShieldAlert className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert></CardContent>)}
-            {pageLoading && !error && (<CardContent><div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Memuat data...</p></div></CardContent>)}
+            {(reportDataLoading || transactionsLoading) && !error && (<CardContent><div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Memuat data...</p></div></CardContent>)}
             
-            {!pageLoading && !error && (
+            {!reportDataLoading && !transactionsLoading && !error && (
                 <>
                     <TabsContent value="trialBalance">{renderTrialBalance()}</TabsContent>
                     <TabsContent value="incomeStatement">{renderIncomeStatement()}</TabsContent>
@@ -403,13 +448,9 @@ export default function AdminReportsPage() {
         <BarChart3 className="h-4 w-4" />
         <AlertTitle>Informasi Laporan</AlertTitle>
         <AlertDescription>
-          Laporan ini menampilkan kondisi keuangan berdasarkan saldo akun kumulatif. 
-          Fitur filter berdasarkan periode tanggal yang dipilih akan mempengaruhi data yang ditampilkan setelah logika filter diimplementasikan pada pengambilan data transaksi.
+          Laporan keuangan ini masih menggunakan saldo kumulatif akun. Logika untuk perhitungan periodik berdasarkan transaksi dalam rentang tanggal yang dipilih akan diimplementasikan pada tahap berikutnya.
         </AlertDescription>
       </Alert>
     </div>
   );
 }
-
-
-    
