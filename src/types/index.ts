@@ -203,7 +203,7 @@ export interface FacilityApplicationData {
   bankDecisionStatus?: 'pending' | 'approved' | 'rejected'; // Decision from bank
   bankComments?: string; // Comments from bank
   bankDecisionMaker?: string; // UID or name of bank personnel
-  bankDecisionDate?: any; // Date of bank decision
+  bankDecisionTimestamp?: any; // Firestore Timestamp for bank decision
 }
 
 export const statusDisplay: Record<FacilityApplicationData['status'], string> = {
@@ -239,6 +239,7 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   updatedAt?: any; // Firestore Timestamp for user document updates
   updatedBy?: string; // UID of admin who last updated the user document
 }
+
 
 
 
