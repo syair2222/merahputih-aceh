@@ -5,18 +5,19 @@
 import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, orderBy, where, QueryConstraint } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, QueryConstraint, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import type { MemberRegistrationData } from '@/types';
+import { useToast } from '@/hooks/use-toast';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Eye, Loader2, ShieldAlert, Users, ArrowLeft, Filter } from 'lucide-react';
+import { Eye, Loader2, ShieldAlert, Users, ArrowLeft, Filter, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 interface Member extends MemberRegistrationData {
@@ -56,17 +68,19 @@ const getStatusBadge = (status?: MemberRegistrationData['status']): ReactNode =>
 };
 
 export default function AdminMembersPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user: adminUser, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const [members, setMembers] = useState<Member[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
 
 
   const fetchMembers = useCallback(async () => {
-    if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
        setPageLoading(false);
        return;
     }
@@ -82,9 +96,9 @@ export default function AdminMembersPage() {
       
       const q = query(membersCollectionRef, ...qConstraints);
       const membersSnapshot = await getDocs(q);
-      const membersList = membersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as MemberRegistrationData),
+      const membersList = membersSnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...(docSnap.data() as MemberRegistrationData),
       })) as Member[];
       setMembers(membersList);
     } catch (err) {
@@ -93,20 +107,52 @@ export default function AdminMembersPage() {
     } finally {
       setPageLoading(false);
     }
-  }, [user, statusFilter]);
+  }, [adminUser, statusFilter]);
 
 
   useEffect(() => {
     if (!authLoading) {
-        if (user && (user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+        if (adminUser && (adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
             fetchMembers();
-        } else if (user) {
+        } else if (adminUser) {
             router.push('/'); // Not an admin, redirect
         } else {
             router.push('/login'); // Not logged in
         }
     }
-  }, [user, authLoading, router, fetchMembers]);
+  }, [adminUser, authLoading, router, fetchMembers]);
+
+  const handleDeleteMember = async () => {
+    if (!memberToDelete || !adminUser) {
+      toast({ title: "Error", description: "Data anggota tidak ditemukan atau aksi tidak diizinkan.", variant: "destructive" });
+      return;
+    }
+
+    if (!(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara')) {
+        toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk menghapus data anggota.", variant: "destructive"});
+        return;
+    }
+
+    try {
+      // Delete from 'members' collection
+      await deleteDoc(doc(db, 'members', memberToDelete.id));
+      
+      // Delete from 'users' collection
+      await deleteDoc(doc(db, 'users', memberToDelete.id));
+
+      // Delete from 'usernames' collection
+      if (memberToDelete.username) {
+        await deleteDoc(doc(db, 'usernames', memberToDelete.username.toLowerCase()));
+      }
+
+      toast({ title: "Anggota Dihapus", description: `Data untuk ${memberToDelete.fullName} berhasil dihapus.` });
+      setMembers(prev => prev.filter(m => m.id !== memberToDelete.id));
+      setMemberToDelete(null);
+    } catch (err) {
+      console.error("Error deleting member:", err);
+      toast({ title: "Gagal Menghapus", description: "Terjadi kesalahan saat menghapus data anggota.", variant: "destructive" });
+    }
+  };
 
 
   if (authLoading || pageLoading) {
@@ -118,8 +164,7 @@ export default function AdminMembersPage() {
     );
   }
 
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
-    // This should ideally be caught by useEffect redirect, but as a safeguard.
+  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
@@ -146,6 +191,8 @@ export default function AdminMembersPage() {
       </div>
     );
   }
+  
+  const canDelete = adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara';
 
   return (
     <div className="space-y-8">
@@ -219,12 +266,38 @@ export default function AdminMembersPage() {
                         : '-'}
                     </TableCell>
                     <TableCell>{getStatusBadge(member.status)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/admin/members/${member.id}`}>
                           <Eye className="mr-2 h-4 w-4" /> Lihat Detail
                         </Link>
                       </Button>
+                      {canDelete && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm" onClick={() => setMemberToDelete(member)}>
+                              <Trash2 className="mr-1 h-3 w-3" /> Hapus
+                            </Button>
+                          </AlertDialogTrigger>
+                          {memberToDelete && memberToDelete.id === member.id && (
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Anda Yakin Ingin Menghapus?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tindakan ini akan menghapus data anggota "{memberToDelete.fullName}" secara permanen dari sistem. 
+                                  Ini juga akan menghapus data pengguna terkait dan username. Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setMemberToDelete(null)}>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteMember} className="bg-destructive hover:bg-destructive/90">
+                                  Ya, Hapus Data
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          )}
+                        </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -236,3 +309,4 @@ export default function AdminMembersPage() {
     </div>
   );
 }
+
