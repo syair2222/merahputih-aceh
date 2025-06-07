@@ -128,8 +128,9 @@ export default function AdminMembersPage() {
       return;
     }
 
-    if (!(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara')) {
-        toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk menghapus data anggota.", variant: "destructive"});
+    if (adminUser.role !== 'admin_utama') {
+        toast({ title: "Akses Ditolak", description: "Hanya Admin Utama yang dapat menghapus data anggota.", variant: "destructive"});
+        setMemberToDelete(null);
         return;
     }
 
@@ -187,7 +188,7 @@ export default function AdminMembersPage() {
     );
   }
   
-  const canDelete = adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara';
+  const canDelete = adminUser.role === 'admin_utama';
 
   return (
     <div className="space-y-8">
@@ -304,5 +305,7 @@ export default function AdminMembersPage() {
     </div>
   );
 }
+
+    
 
     
