@@ -48,7 +48,7 @@ export default function AdminFacilitiesPage() {
 
 
   const fetchApplications = useCallback(async () => {
-    if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
       setPageLoading(false);
       return;
     }
@@ -78,7 +78,7 @@ export default function AdminFacilitiesPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+      if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
         router.push('/');
       } else {
         fetchApplications();
@@ -96,7 +96,7 @@ export default function AdminFacilitiesPage() {
     );
   }
 
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">

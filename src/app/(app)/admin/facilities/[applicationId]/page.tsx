@@ -130,7 +130,7 @@ export default function AdminFacilityApplicationDetailPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+      if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
         router.push('/');
       } else {
         fetchApplication();
@@ -140,6 +140,13 @@ export default function AdminFacilityApplicationDetailPage() {
 
   const handleDecision = async (newStatus: 'approved' | 'rejected' | 'requires_correction' | 'completed') => {
     if (!application || !user) return;
+    
+    // Bank Partner Admin cannot make decisions on this page
+    if (user.role === 'bank_partner_admin') {
+        toast({ title: "Aksi Tidak Diizinkan", description: "Admin Bank Mitra tidak dapat mengubah status pengajuan ini.", variant: "destructive"});
+        return;
+    }
+
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminDecisionComment.trim()) {
         toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive"});
         return;
@@ -189,7 +196,7 @@ export default function AdminFacilityApplicationDetailPage() {
     );
   }
   
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
      return (
         <div className="text-center p-10">
             <Alert variant="destructive">
@@ -222,6 +229,7 @@ export default function AdminFacilityApplicationDetailPage() {
 
   const appDateFormatted = application.applicationDate instanceof Date ? application.applicationDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Tidak diketahui';
   const decisionDateFormatted = application.decisionDate instanceof Date ? application.decisionDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  const canMakeDecision = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas';
 
 
   return (
@@ -341,7 +349,7 @@ export default function AdminFacilityApplicationDetailPage() {
             </Alert>
           )}
 
-          {(application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction') && (
+          {(application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction') && canMakeDecision && (
             <>
               <div>
                 <Label htmlFor="adminDecisionComment">Komentar / Alasan Keputusan (Wajib jika ditolak/minta perbaikan)</Label>
@@ -369,6 +377,15 @@ export default function AdminFacilityApplicationDetailPage() {
               </div>
             </>
           )}
+           {(!canMakeDecision && (application.status === 'pending_review' || application.status === 'pending_approval' || application.status === 'requires_correction')) && (
+            <Alert variant="default">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Mode Tampilan</AlertTitle>
+                <AlertDescription>
+                   Peran Anda ({user?.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}) tidak memiliki wewenang untuk mengubah status pengajuan ini. Anda hanya dapat melihat detailnya.
+                </AlertDescription>
+             </Alert>
+           )}
            {(application.status === 'approved' && user?.role === 'admin_utama') && ( // Only allow admin_utama to mark as completed
             <Button onClick={() => handleDecision('completed')} variant="secondary" disabled={isSubmittingDecision}>
               Tandai Selesai
