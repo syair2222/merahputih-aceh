@@ -71,7 +71,15 @@ export default function AdminAnnouncementsPage() {
   }, [user, authLoading, router, fetchAnnouncements]);
 
   const handleDeleteAnnouncement = async () => {
-    if (!announcementToDelete) return;
+    if (!announcementToDelete || !user) return;
+
+    // Authorization check: only author or admin_utama can delete
+    if (user.role !== 'admin_utama' && user.uid !== announcementToDelete.authorId) {
+      toast({ title: "Aksi Tidak Diizinkan", description: "Anda tidak memiliki izin untuk menghapus pengumuman ini.", variant: "destructive" });
+      setAnnouncementToDelete(null);
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, 'announcements', announcementToDelete.id));
       toast({ title: "Pengumuman Dihapus", description: `Pengumuman "${announcementToDelete.title}" berhasil dihapus.` });
@@ -156,48 +164,58 @@ export default function AdminAnnouncementsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {announcements.map((ann) => (
-                  <TableRow key={ann.id}>
-                    <TableCell className="font-medium">{ann.title}</TableCell>
-                    <TableCell className="hidden md:table-cell">{ann.authorName}</TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {ann.createdAt instanceof Date ? ann.createdAt.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={ann.status === 'published' ? 'default' : 'secondary'} className={ann.status === 'published' ? 'bg-green-500 text-white' : ''}>
-                        {ann.status === 'published' ? 'Diterbitkan' : 'Draft'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => toast({ title: "Segera Hadir", description: "Fitur edit pengumuman akan segera tersedia."})}>
-                        <Edit className="mr-1 h-3 w-3" /> Edit
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm" onClick={() => setAnnouncementToDelete(ann)}>
-                            <Trash2 className="mr-1 h-3 w-3" /> Hapus
-                          </Button>
-                        </AlertDialogTrigger>
-                        {announcementToDelete && announcementToDelete.id === ann.id && (
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Anda Yakin?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tindakan ini tidak dapat dibatalkan. Ini akan menghapus pengumuman berjudul "{announcementToDelete.title}" secara permanen.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel onClick={() => setAnnouncementToDelete(null)}>Batal</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDeleteAnnouncement} className="bg-destructive hover:bg-destructive/90">
-                                Ya, Hapus
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
+                {announcements.map((ann) => {
+                  const canModify = user.role === 'admin_utama' || user.uid === ann.authorId;
+                  return (
+                    <TableRow key={ann.id}>
+                      <TableCell className="font-medium">{ann.title}</TableCell>
+                      <TableCell className="hidden md:table-cell">{ann.authorName}</TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {ann.createdAt instanceof Date ? ann.createdAt.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={ann.status === 'published' ? 'default' : 'secondary'} className={ann.status === 'published' ? 'bg-green-500 text-white' : ''}>
+                          {ann.status === 'published' ? 'Diterbitkan' : 'Draft'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => toast({ title: "Segera Hadir", description: "Fitur edit pengumuman akan segera tersedia."})}
+                          // disabled={!canModify} // Enable this when edit feature is ready
+                        >
+                          <Edit className="mr-1 h-3 w-3" /> Edit
+                        </Button>
+                        {canModify && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="sm" onClick={() => setAnnouncementToDelete(ann)}>
+                                <Trash2 className="mr-1 h-3 w-3" /> Hapus
+                              </Button>
+                            </AlertDialogTrigger>
+                            {announcementToDelete && announcementToDelete.id === ann.id && (
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Anda Yakin?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tindakan ini tidak dapat dibatalkan. Ini akan menghapus pengumuman berjudul "{announcementToDelete.title}" secara permanen.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel onClick={() => setAnnouncementToDelete(null)}>Batal</AlertDialogCancel>
+                                  <AlertDialogAction onClick={handleDeleteAnnouncement} className="bg-destructive hover:bg-destructive/90">
+                                    Ya, Hapus
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            )}
+                          </AlertDialog>
                         )}
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
