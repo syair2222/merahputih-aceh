@@ -240,3 +240,4 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   updatedBy?: string; // UID of admin who last updated the user document
 }
 
+
