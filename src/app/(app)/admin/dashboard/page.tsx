@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog } from "lucide-react"; // Changed UsersCog to UserCog
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog, Building } from "lucide-react"; // Changed UsersCog to UserCog, Added Building
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -41,7 +41,7 @@ export default function AdminDashboardPage() {
       return;
     }
     
-    const isAdminRole = user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas';
+    const isAdminRole = user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin';
     if (!isAdminRole) {
       router.push('/'); 
       return;
@@ -54,6 +54,13 @@ export default function AdminDashboardPage() {
              currentQuickActions.push({ label: "Manajemen Pengguna", href: "/admin/user-management", icon: UserCog }); // Changed UsersCog to UserCog
         }
     }
+    // Example: If bank_partner_admin, maybe add a link to their specific dashboard or a relevant section
+    // For now, they just get access to the main admin dashboard content.
+    // if (user.role === 'bank_partner_admin') {
+    //   if (!currentQuickActions.find(action => action.href === "/bank-admin/dashboard")) {
+    //     currentQuickActions.push({ label: "Dasbor Bank", href: "/bank-admin/dashboard", icon: Building });
+    //   }
+    // }
     setQuickActions(currentQuickActions);
 
   }, [user, authLoading, router]);
@@ -68,7 +75,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] p-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -84,7 +91,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-headline font-bold text-primary">Dasbor Admin</h1>
-        <span className="text-sm text-muted-foreground">Selamat datang, {adminName}!</span>
+        <span className="text-sm text-muted-foreground">Selamat datang, {adminName}! (Peran: {user.role?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())})</span>
       </div>
 
       {/* Stats Cards */}
@@ -112,16 +119,22 @@ export default function AdminDashboardPage() {
           <CardDescription>Akses cepat ke fitur-fitur penting admin.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {quickActions.map((action) => (
-            <Button key={action.label} variant="outline" className="w-full justify-start p-4 h-auto text-left border-primary/30 hover:bg-primary/10" asChild>
-              <Link href={action.href}>
-                <action.icon className="h-6 w-6 mr-3 text-primary" />
-                <span className="flex flex-col">
-                  <span className="font-semibold">{action.label}</span>
-                </span>
-              </Link>
-            </Button>
-          ))}
+          {quickActions.map((action) => {
+            // Hide "Manajemen Pengguna" if not admin_utama
+            if (action.href === "/admin/user-management" && user.role !== 'admin_utama') {
+              return null;
+            }
+            return (
+              <Button key={action.label} variant="outline" className="w-full justify-start p-4 h-auto text-left border-primary/30 hover:bg-primary/10" asChild>
+                <Link href={action.href}>
+                  <action.icon className="h-6 w-6 mr-3 text-primary" />
+                  <span className="flex flex-col">
+                    <span className="font-semibold">{action.label}</span>
+                  </span>
+                </Link>
+              </Button>
+            );
+          })}
         </CardContent>
       </Card>
 
