@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -25,9 +25,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 
@@ -84,10 +94,10 @@ const getStatusBadgeVariant = (status?: UserProfile['status']): "default" | "sec
     switch (status) {
         case 'approved':
         case 'verified':
-            return "default"; // Greenish in default theme
+            return "default"; 
         case 'pending':
         case 'requires_correction':
-            return "secondary"; // Yellowish/Orangeish in default theme
+            return "secondary"; 
         case 'rejected':
             return "destructive";
         default:
@@ -111,6 +121,10 @@ export default function UserManagementPage() {
   const [editingStatus, setEditingStatus] = useState<UserProfile['status'] | undefined>(undefined);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
+  const [userToDelete, setUserToDelete] = useState<DisplayUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
+
   const fetchUsers = useCallback(async () => {
     if (!currentAdminUser || currentAdminUser.role !== 'admin_utama') {
        setPageLoading(false);
@@ -129,7 +143,7 @@ export default function UserManagementPage() {
             lastLoginDisplay = (data.lastLogin as unknown as Timestamp).toDate();
         }
         return {
-          id: docSnap.id, // Firestore document ID is typically user.uid for 'users' collection
+          id: docSnap.id, 
           ...data,
           lastLogin: lastLoginDisplay,
         };
@@ -149,7 +163,7 @@ export default function UserManagementPage() {
         if (currentAdminUser && currentAdminUser.role === 'admin_utama') {
             fetchUsers();
         } else if (currentAdminUser) {
-            router.push('/admin/dashboard'); // Or a general access denied page
+            router.push('/admin/dashboard'); 
             toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk halaman ini.", variant: "destructive"});
         } else {
             router.push('/login');
@@ -184,22 +198,18 @@ export default function UserManagementPage() {
             updatedBy: currentAdminUser.uid,
         });
 
-        // If role is changed to/from 'member', potentially update 'members' collection status too
         if (selectedUserForEdit.role !== 'member' && editingRole === 'member' && editingStatus === 'approved') {
             const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
             await updateDoc(memberDocRef, { status: 'approved', lastAdminActionTimestamp: serverTimestamp() }).catch(e => console.warn("Could not update member status for", selectedUserForEdit.uid, e));
         } else if (selectedUserForEdit.role === 'member' && editingRole !== 'member') {
              const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
-             // Consider what status to set if user is no longer a 'member'
-             // For now, let's assume if they are not a member, their member record status might be 'pending' or 'rejected'
-             // This part might need more specific business logic.
              await updateDoc(memberDocRef, { status: 'pending', lastAdminActionTimestamp: serverTimestamp() }).catch(e => console.warn("Could not update member status for", selectedUserForEdit.uid, e));
         }
 
 
         toast({title: "Perubahan Disimpan", description: `Peran untuk ${selectedUserForEdit.displayName} telah diperbarui.`});
         setIsEditModalOpen(false);
-        fetchUsers(); // Refresh list
+        fetchUsers(); 
     } catch(error) {
         console.error("Error updating user role/status:", error);
         toast({title: "Gagal Menyimpan", description: "Terjadi kesalahan.", variant: "destructive"});
@@ -207,6 +217,50 @@ export default function UserManagementPage() {
         setIsSubmittingEdit(false);
     }
   };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete || !currentAdminUser || currentAdminUser.role !== 'admin_utama') {
+      toast({ title: "Error", description: "Data pengguna tidak ditemukan atau aksi tidak diizinkan.", variant: "destructive" });
+      return;
+    }
+    if (userToDelete.uid === currentAdminUser.uid) {
+      toast({ title: "Aksi Tidak Diizinkan", description: "Admin Utama tidak dapat menghapus akunnya sendiri.", variant: "destructive" });
+      setUserToDelete(null);
+      return;
+    }
+
+    setIsDeletingUser(true);
+    try {
+      // Delete from 'users' collection
+      await deleteDoc(doc(db, 'users', userToDelete.uid));
+      
+      // Attempt to delete from 'members' collection (if exists)
+      try {
+        await deleteDoc(doc(db, 'members', userToDelete.uid));
+      } catch (memberDeleteError) {
+        console.warn(`Could not delete member record for ${userToDelete.uid} (may not exist):`, memberDeleteError);
+      }
+
+      // Attempt to delete from 'usernames' collection (if username exists)
+      if (userToDelete.username) {
+        try {
+          await deleteDoc(doc(db, 'usernames', userToDelete.username.toLowerCase()));
+        } catch (usernameDeleteError) {
+          console.warn(`Could not delete username record for ${userToDelete.username} (may not exist):`, usernameDeleteError);
+        }
+      }
+
+      toast({ title: "Pengguna Dihapus", description: `Data untuk ${userToDelete.displayName || userToDelete.email} berhasil dihapus.` });
+      setUsers(prev => prev.filter(u => u.uid !== userToDelete.uid));
+      setUserToDelete(null);
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      toast({ title: "Gagal Menghapus", description: "Terjadi kesalahan saat menghapus data pengguna.", variant: "destructive" });
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
 
   if (authLoading || pageLoading) {
     return (
@@ -295,10 +349,37 @@ export default function UserManagementPage() {
                         ? userDoc.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }) 
                         : typeof userDoc.lastLogin === 'string' ? userDoc.lastLogin : 'Belum Pernah'}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleEditUser(userDoc)} disabled={userDoc.uid === currentAdminUser.uid && userDoc.role === 'admin_utama'}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                       </Button>
+                      {userDoc.uid !== currentAdminUser.uid && ( // Prevent deleting self
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm" onClick={() => setUserToDelete(userDoc)} disabled={isDeletingUser}>
+                              <Trash2 className="mr-1 h-3 w-3" /> Hapus
+                            </Button>
+                          </AlertDialogTrigger>
+                          {userToDelete && userToDelete.uid === userDoc.uid && (
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Anda Yakin Ingin Menghapus Pengguna Ini?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tindakan ini akan menghapus pengguna "{userToDelete.displayName || userToDelete.email}" secara permanen dari sistem.
+                                  Ini juga akan menghapus data anggota terkait (jika ada) dan username. Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setUserToDelete(null)}>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive hover:bg-destructive/90" disabled={isDeletingUser}>
+                                  {isDeletingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                  Ya, Hapus Pengguna
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          )}
+                        </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -311,7 +392,7 @@ export default function UserManagementPage() {
       {selectedUserForEdit && (
         <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
             if (!isOpen) {
-                setSelectedUserForEdit(null); // Clear selection when dialog closes
+                setSelectedUserForEdit(null); 
             }
             setIsEditModalOpen(isOpen);
         }}>
