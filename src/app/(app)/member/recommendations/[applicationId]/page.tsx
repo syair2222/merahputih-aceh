@@ -67,7 +67,7 @@ export default function MemberProvideRecommendationPage() {
           setInitialCommentLoaded(true);
         } else {
           setError('Anda tidak diminta untuk memberikan rekomendasi untuk pengajuan ini, atau permintaan sudah tidak valid.');
-          setApplication(null); // Clear application data if user is not a recommender
+          setApplication(null); // Clear application data if user is not a valid recommender
         }
       } else {
         setError('Data pengajuan fasilitas tidak ditemukan.');
@@ -114,7 +114,7 @@ export default function MemberProvideRecommendationPage() {
             ...rec,
             status: decision,
             comment: recommenderComment.trim(),
-            decisionDate: serverTimestamp(), // Set Firestore server timestamp
+            decisionDate: new Date(), // Replaced serverTimestamp() with new Date()
           };
         }
         return rec;
