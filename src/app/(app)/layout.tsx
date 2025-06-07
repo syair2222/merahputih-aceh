@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UserCog } from 'lucide-react'; // Changed UsersCog to UserCog
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UserCog, BookText } from 'lucide-react'; // Added BookText
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -67,21 +67,31 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara' || user?.role === 'dinas' || user?.role === 'bank_partner_admin';
   const isAdminUtama = user?.role === 'admin_utama';
+  const isFinanceAdmin = user?.role === 'admin_utama' || user?.role === 'sekertaris' || user?.role === 'bendahara';
   const isMember = user?.role === 'member';
-  const isBankAdmin = user?.role === 'bank_partner_admin'; // This variable remains, but isAdmin will take precedence for menu items if bank_partner_admin is in isAdmin.
+  const isBankAdmin = user?.role === 'bank_partner_admin'; 
   const isAgencyAdmin = user?.role === 'related_agency_admin';
 
-  const adminMenuItems = [
+  const baseAdminMenuItems = [
     { href: '/admin/dashboard', label: 'Dasbor Admin', icon: LayoutDashboard },
     { href: '/admin/members', label: 'Manajemen Anggota', icon: UserCircle },
     { href: '/admin/applications', label: 'Verifikasi Pendaftaran', icon: FileText },
     { href: '/admin/facilities', label: 'Pengajuan Fasilitas', icon: DollarSign },
     { href: '/admin/reports', label: 'Laporan Keuangan', icon: BarChart3 },
-    { href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone },
   ];
 
+  if (isFinanceAdmin) {
+    baseAdminMenuItems.push({ href: '/admin/finance/coa', label: 'Manajemen CoA', icon: BookText });
+  }
+  
+  baseAdminMenuItems.push({ href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone });
+
+
+  const adminMenuItems = [...baseAdminMenuItems];
+
+
   if (isAdminUtama) {
-    adminMenuItems.push({ href: '/admin/user-management', label: 'Manajemen Pengguna', icon: UserCog }); // Changed UsersCog to UserCog
+    adminMenuItems.push({ href: '/admin/user-management', label: 'Manajemen Pengguna', icon: UserCog }); 
   }
   
   adminMenuItems.push(
@@ -103,27 +113,35 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const bankAdminMenuItems = [
     { href: '/bank-admin/dashboard', label: 'Dasbor Bank', icon: Building },
-    // { href: '/bank-admin/applications', label: 'Tinjau Pengajuan', icon: FileText }, // Example for future
+    // Bank admin also sees general admin facility list, filtered by targetEntityType
+    { href: '/admin/facilities', label: 'Tinjau Pengajuan', icon: FileText },
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
   const agencyAdminMenuItems = [
     { href: '/agency-admin/dashboard', label: 'Dasbor Dinas', icon: Briefcase },
-    // { href: '/agency-admin/programs', label: 'Program Bantuan', icon: FileText }, // Example for future
+    // Agency admin also sees general admin facility list, filtered by targetEntityType
+    { href: '/admin/facilities', label: 'Tinjau Pengajuan', icon: FileText },
     { href: '/profile', label: 'Profil Saya', icon: UserCircle },
     { href: '/settings', label: 'Pengaturan Akun', icon: Settings },
   ];
 
   let currentMenuItems = [];
   if (isAdmin) {
-    currentMenuItems = adminMenuItems;
+    // For bank_partner_admin and related_agency_admin, we want a more specific menu
+    // which is covered by their own dashboards.
+    // The general admin menu is for admin_utama, sekertaris, bendahara, dinas (general).
+    if (isBankAdmin && !isFinanceAdmin && !isAdminUtama && user.role !== 'dinas') { // bank_partner_admin is not a finance admin or admin_utama or general dinas
+        currentMenuItems = bankAdminMenuItems;
+    } else if (isAgencyAdmin && !isFinanceAdmin && !isAdminUtama && user.role !== 'dinas') { // related_agency_admin is not a finance admin or admin_utama or general dinas
+        currentMenuItems = agencyAdminMenuItems;
+    }
+    else {
+        currentMenuItems = adminMenuItems;
+    }
   } else if (isMember) {
     currentMenuItems = memberMenuItems;
-  } else if (isBankAdmin) { // This condition will now likely not be met if bank_partner_admin is part of isAdmin
-    currentMenuItems = bankAdminMenuItems;
-  } else if (isAgencyAdmin) {
-    currentMenuItems = agencyAdminMenuItems;
   }
    else {
     // Fallback untuk prospective_member atau peran lain/tidak terdefinisi
