@@ -24,7 +24,7 @@ export default function NewAnnouncementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+    if (!loading && user && !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
       router.push('/');
     }
   }, [user, loading, router]);
@@ -73,7 +73,7 @@ export default function NewAnnouncementPage() {
     );
   }
 
-  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas')) {
+  if (!user || !(user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' || user.role === 'bank_partner_admin')) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
@@ -138,3 +138,5 @@ export default function NewAnnouncementPage() {
     </div>
   );
 }
+
+    
