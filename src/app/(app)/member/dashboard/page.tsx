@@ -136,15 +136,23 @@ export default function MemberDashboardPage() {
     setRecsLoading(true);
     try {
         const applicationsRef = collection(db, 'facilityApplications');
-        // This query is tricky with array-contains and status.
-        // Firestore cannot query for "array contains object where field X is Y".
-        // We have to fetch applications where the user is *any* recommender first, then filter client-side.
-        const q = query(applicationsRef, where('requestedRecommendations', 'array-contains-any', [{memberId: user.uid, memberName: '', status: 'pending' as const}]));
+        // Query for applications that might have pending recommendations
+        const q = query(
+            applicationsRef, 
+            where('status', 'in', ['pending_review', 'pending_approval'])
+        );
 
         const querySnapshot = await getDocs(q);
         const pendingRequests: PendingRecommendationRequest[] = [];
+        
         querySnapshot.forEach(docSnap => {
             const app = docSnap.data() as FacilityApplicationData;
+            
+            // Ensure the current user is not the applicant for this specific list
+            if (app.userId === user.uid) {
+                return;
+            }
+
             if (app.requestedRecommendations) {
                 const userRecRequest = app.requestedRecommendations.find(
                     rec => rec.memberId === user.uid && rec.status === 'pending'
