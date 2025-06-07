@@ -56,9 +56,19 @@ export default function AdminFacilitiesPage() {
     setError(null);
     try {
       const qConstraints: QueryConstraint[] = [orderBy('applicationDate', 'desc')];
+      
       if (statusFilter !== "all") {
         qConstraints.push(where("status", "==", statusFilter));
       }
+
+      // Filter by targetEntityType based on user role
+      if (user.role === 'bank_partner_admin') {
+        qConstraints.push(where("targetEntityType", "in", ["BANK_MITRA", "UMUM_BELUM_DITENTUKAN"]));
+      } else if (user.role === 'dinas') {
+        qConstraints.push(where("targetEntityType", "in", ["DINAS_TERKAIT", "UMUM_BELUM_DITENTUKAN"]));
+      }
+      // Roles 'admin_utama', 'sekertaris', 'bendahara' will not have targetEntityType filter by default, seeing all based on status.
+
       const q = query(collection(db, 'facilityApplications'), ...qConstraints);
       const querySnapshot = await getDocs(q);
       const appsData = querySnapshot.docs.map(doc => ({
@@ -183,6 +193,7 @@ export default function AdminFacilitiesPage() {
                 <TableRow>
                   <TableHead>Nama Anggota</TableHead>
                   <TableHead className="hidden md:table-cell">Jenis Fasilitas</TableHead>
+                  <TableHead className="hidden sm:table-cell">Tujuan Pengajuan</TableHead>
                   <TableHead className="hidden lg:table-cell">Tgl. Pengajuan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
@@ -193,6 +204,7 @@ export default function AdminFacilitiesPage() {
                   <TableRow key={app.id}>
                     <TableCell className="font-medium">{app.memberFullName}</TableCell>
                     <TableCell className="hidden md:table-cell">{app.facilityType}{app.facilityType === 'Lainnya' && app.specificProductName ? ` (${app.specificProductName})` : ''}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs">{app.targetEntityType ? app.targetEntityType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}</TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {app.applicationDate instanceof Date ? app.applicationDate.toLocaleDateString('id-ID') : 'N/A'}
                     </TableCell>
