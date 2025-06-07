@@ -202,7 +202,7 @@ export interface FacilityApplicationData {
 
   bankDecisionStatus?: 'pending' | 'approved' | 'rejected'; // Decision from bank
   bankComments?: string; // Comments from bank
-  bankDecisionMaker?: string; // UID or name of bank personnel
+  bankDecisionMaker?: string; // Name or UID of bank personnel
   bankDecisionTimestamp?: any; // Firestore Timestamp for bank decision
 }
 
@@ -240,6 +240,51 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   updatedBy?: string; // UID of admin who last updated the user document
 }
 
+// --- Financial System Types ---
 
+export type AccountType = 'ASET' | 'LIABILITAS' | 'EKUITAS' | 'PENDAPATAN' | 'BEBAN';
+export type NormalBalance = 'DEBIT' | 'KREDIT';
 
+export interface ChartOfAccountItem {
+  id?: string; // Firestore document ID
+  accountId: string; // Unique account code, e.g., "1010" for Kas, "4000" for Pendapatan Jasa
+  accountName: string;
+  accountType: AccountType;
+  normalBalance: NormalBalance;
+  balance?: number; // Current balance, should be updated by transactions
+  parentId?: string | null; // For hierarchical CoA, refers to another accountId
+  isActive?: boolean;
+  description?: string; // Optional description
+}
+
+export interface Transaction {
+  id?: string; // Firestore document ID
+  transactionDate: any; // Firestore Timestamp
+  description: string;
+  referenceNumber?: string;
+  status?: 'DRAFT' | 'POSTED' | 'VOID'; // Status of the transaction
+  createdAt?: any; // Firestore Timestamp
+  createdBy?: string; // UID of the user who created the transaction
+  postedAt?: any; // Firestore Timestamp, if status is POSTED
+  postedBy?: string; // UID of the user who posted
+}
+
+export interface TransactionDetail {
+  id?: string; // Firestore document ID (can be a sub-collection item)
+  transactionId: string; // Foreign key to Transaction.id
+  accountId: string; // Foreign key to ChartOfAccountItem.accountId
+  debitAmount?: number;
+  creditAmount?: number;
+  notes?: string; // Optional notes for this specific entry
+}
+
+export interface FinancialPeriod {
+  id?: string; // e.g., "2024-01" for January 2024
+  name: string; // e.g., "Januari 2024"
+  startDate: any; // Firestore Timestamp
+  endDate: any; // Firestore Timestamp
+  status: 'OPEN' | 'CLOSED';
+}
+
+// --- End Financial System Types ---
 
