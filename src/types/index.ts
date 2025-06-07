@@ -202,7 +202,7 @@ export interface FacilityApplicationData {
 
   bankDecisionStatus?: 'pending' | 'approved' | 'rejected'; // Decision from bank
   bankComments?: string; // Comments from bank
-  bankDecisionBy?: string; // UID or name of bank personnel
+  bankDecisionMaker?: string; // UID or name of bank personnel
   bankDecisionDate?: any; // Date of bank decision
 }
 
@@ -239,5 +239,6 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   updatedAt?: any; // Firestore Timestamp for user document updates
   updatedBy?: string; // UID of admin who last updated the user document
 }
+
 
 
