@@ -111,14 +111,14 @@ export default function AdminMembersPage() {
 
 
   useEffect(() => {
-    if (!authLoading) {
-        if (adminUser && (adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
-            fetchMembers();
-        } else if (adminUser) {
-            router.push('/'); // Not an admin, redirect
-        } else {
-            router.push('/login'); // Not logged in
-        }
+    if (authLoading) return; 
+
+    if (adminUser && (adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+        fetchMembers();
+    } else if (adminUser) {
+        router.push('/'); 
+    } else {
+        router.push('/login'); 
     }
   }, [adminUser, authLoading, router, fetchMembers]);
 
@@ -134,13 +134,8 @@ export default function AdminMembersPage() {
     }
 
     try {
-      // Delete from 'members' collection
       await deleteDoc(doc(db, 'members', memberToDelete.id));
-      
-      // Delete from 'users' collection
       await deleteDoc(doc(db, 'users', memberToDelete.id));
-
-      // Delete from 'usernames' collection
       if (memberToDelete.username) {
         await deleteDoc(doc(db, 'usernames', memberToDelete.username.toLowerCase()));
       }
@@ -310,3 +305,4 @@ export default function AdminMembersPage() {
   );
 }
 
+    
