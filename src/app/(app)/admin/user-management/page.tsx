@@ -241,12 +241,12 @@ export default function UserManagementPage() {
         console.warn(`Could not delete member record for ${userToDelete.uid} (may not exist):`, memberDeleteError);
       }
 
-      // Attempt to delete from 'usernames' collection (if username exists)
-      if (userToDelete.username) {
+      // Attempt to delete from 'usernames' collection (if username exists and is a non-empty string)
+      if (userToDelete.username && typeof userToDelete.username === 'string' && userToDelete.username.trim() !== '') {
         try {
           await deleteDoc(doc(db, 'usernames', userToDelete.username.toLowerCase()));
         } catch (usernameDeleteError) {
-          console.warn(`Could not delete username record for ${userToDelete.username} (may not exist):`, usernameDeleteError);
+          console.warn(`Could not delete username record for ${userToDelete.username} (may not exist or invalid path):`, usernameDeleteError);
         }
       }
 
