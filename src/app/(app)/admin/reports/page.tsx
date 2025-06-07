@@ -8,12 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter as ShadTableFooter } from '@/components/ui/table';
-import { ArrowLeft, ShieldAlert, Loader2, BarChart3, Printer, AlertCircle, FileSpreadsheet, Scaling, CircleDollarSign } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, BarChart3, Printer, AlertCircle, FileSpreadsheet, Scaling, CircleDollarSign, CalendarIcon } from 'lucide-react';
 import type { ChartOfAccountItem, UserProfile } from '@/types';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, isValid as isValidDate } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
 
 interface TrialBalanceEntry {
   accountId: string;
@@ -57,7 +63,11 @@ export default function AdminReportsPage() {
 
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reportDate, setReportDate] = useState<Date>(new Date());
+  
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [displayPeriod, setDisplayPeriod] = useState<string>(`Per Tanggal: ${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+
   const [activeTab, setActiveTab] = useState("trialBalance");
 
 
@@ -95,7 +105,7 @@ export default function AdminReportsPage() {
     
     const totalRevenue = revenues.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalExpenses = expenses.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    const netIncome = totalRevenue - totalExpenses;
+    const netIncome = totalRevenue - totalExpenses; // For IS, positive balance for revenue is revenue, positive balance for expense is expense.
     setIncomeStatementData({ revenues, totalRevenue, expenses, totalExpenses, netIncome });
 
     // --- Balance Sheet Processing ---
@@ -106,15 +116,23 @@ export default function AdminReportsPage() {
     const totalAssets = assets.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalLiabilities = liabilities.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalEquityFromCoA = equityAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    // For a snapshot Balance Sheet, current Net Income is part of the change in Equity for the period.
-    const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromCoA + netIncome;
+    const totalLiabilitiesAndEquity = totalLiabilities + totalEquityFromCoA + netIncome; // netIncome is for the current period being reported
     setBalanceSheetData({ assets, totalAssets, liabilities, totalLiabilities, equityAccounts, totalEquityFromCoA, netIncomeForBS: netIncome, totalLiabilitiesAndEquity });
 
-    setReportDate(new Date());
-  }, []);
+    // Update display period string
+    if (startDate && endDate) {
+      setDisplayPeriod(`Periode: ${format(startDate, "PPP", { locale: localeID })} - ${format(endDate, "PPP", { locale: localeID })}`);
+    } else if (endDate) {
+      setDisplayPeriod(`Per Tanggal: ${format(endDate, "PPP", { locale: localeID })}`);
+    } else {
+      setDisplayPeriod(`Per Tanggal: ${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+    }
+  }, [startDate, endDate]);
 
 
-  const fetchAllAccounts = useCallback(async () => {
+  const fetchAllAccountsAndProcess = useCallback(async () => {
+    // Logic for fetching data based on startDate and endDate will be added here in a future step.
+    // For now, it still fetches all accounts.
     setPageLoading(true);
     setError(null);
     try {
@@ -124,7 +142,7 @@ export default function AdminReportsPage() {
         id: docSnap.id, ...docSnap.data()
       } as ChartOfAccountItem));
       setAllAccounts(fetchedAccounts);
-      processFinancialData(fetchedAccounts);
+      processFinancialData(fetchedAccounts); // This will now use startDate and endDate for display purposes
     } catch (err) {
       console.error("Error fetching accounts data:", err);
       setError('Gagal memuat data akun.');
@@ -132,22 +150,33 @@ export default function AdminReportsPage() {
     } finally {
       setPageLoading(false);
     }
-  }, [toast, processFinancialData]);
+  }, [toast, processFinancialData]); // Added processFinancialData to dependencies
 
   useEffect(() => {
     if (!authLoading) {
       if (user && allowedRoles.includes(user.role as UserProfile['role'])) {
-        fetchAllAccounts();
+        fetchAllAccountsAndProcess();
       } else if (user) {
         router.push('/admin/dashboard');
       } else {
         router.push('/login');
       }
     }
-  }, [user, authLoading, router, fetchAllAccounts, allowedRoles]);
+  }, [user, authLoading, router, fetchAllAccountsAndProcess, allowedRoles]);
+
+  const handleApplyPeriod = () => {
+    if (startDate && endDate && startDate > endDate) {
+        toast({
+            title: "Periode Tidak Valid",
+            description: "Tanggal mulai tidak boleh setelah tanggal selesai.",
+            variant: "destructive"
+        });
+        return;
+    }
+    fetchAllAccountsAndProcess();
+  };
 
   const handlePrint = () => {
-    // Potentially enhance this to print only the active tab's content
     window.print();
   };
 
@@ -274,7 +303,7 @@ export default function AdminReportsPage() {
             <AlertTitle className={isBalanced ? 'text-green-800' : ''}>{isBalanced ? "Neraca Seimbang" : "Neraca Tidak Seimbang!"}</AlertTitle>
             <AlertDescription>
                 Total Aset: Rp {totalAssets.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<br/>
-                Total Liabilitas & Ekuitas: Rp {totalLiabilitiesAndEquity.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                Total Liabilitas &amp; Ekuitas: Rp {totalLiabilitiesAndEquity.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </AlertDescription>
         </Alert>
       </CardContent>
@@ -294,6 +323,47 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
+      <Card className="shadow-lg no-print">
+        <CardHeader>
+          <CardTitle className="text-lg font-headline">Filter Periode Laporan</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {startDate ? format(startDate, "PPP", {locale: localeID}) : <span>Pilih Tanggal Mulai</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+            </PopoverContent>
+          </Popover>
+          <span className="text-muted-foreground hidden sm:inline">-</span>
+           <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {endDate ? format(endDate, "PPP", {locale: localeID}) : <span>Pilih Tanggal Selesai</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+            </PopoverContent>
+          </Popover>
+          <Button onClick={handleApplyPeriod} className="w-full sm:w-auto">
+            <Loader2 className={`mr-2 h-4 w-4 ${pageLoading ? 'animate-spin' : 'hidden'}`} />
+            Terapkan Periode & Muat Laporan
+          </Button>
+        </CardContent>
+      </Card>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 no-print">
           <TabsTrigger value="trialBalance"><FileSpreadsheet className="mr-2 h-4 w-4"/>Neraca Saldo</TabsTrigger>
@@ -310,12 +380,9 @@ export default function AdminReportsPage() {
                         {activeTab === "incomeStatement" && "Laporan Laba Rugi"}
                         {activeTab === "balanceSheet" && "Laporan Posisi Keuangan (Neraca)"}
                     </CardTitle>
-                    <CardDescription>Per Tanggal: {reportDate.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</CardDescription>
+                    <CardDescription>{displayPeriod}</CardDescription>
                 </div>
-                <Button onClick={fetchAllAccounts} variant="outline" size="sm" className="mt-2 sm:mt-0 no-print">
-                    <Loader2 className={`mr-2 h-4 w-4 ${pageLoading ? 'animate-spin' : 'hidden'}`} />
-                    Muat Ulang Data
-                </Button>
+                {/* Button to reload data for the *current* selected period was here, but apply button serves this purpose now */}
             </div>
           </CardHeader>
 
@@ -336,10 +403,13 @@ export default function AdminReportsPage() {
         <BarChart3 className="h-4 w-4" />
         <AlertTitle>Informasi Laporan</AlertTitle>
         <AlertDescription>
-          Laporan ini menampilkan kondisi keuangan berdasarkan data transaksi dan saldo akun terakhir. 
-          Untuk pelaporan periodik yang akurat (misal, bulanan/tahunan), fitur pemilihan periode dan proses tutup buku akan dikembangkan lebih lanjut.
+          Laporan ini menampilkan kondisi keuangan berdasarkan saldo akun kumulatif. 
+          Fitur filter berdasarkan periode tanggal yang dipilih akan mempengaruhi data yang ditampilkan setelah logika filter diimplementasikan pada pengambilan data transaksi.
         </AlertDescription>
       </Alert>
     </div>
   );
 }
+
+
+    
