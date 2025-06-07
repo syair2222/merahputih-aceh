@@ -131,6 +131,11 @@ export default function MemberDetailPage() {
   const handleAdminAction = async (newStatus: MemberRegistrationData['status'], newRole?: 'member' | 'prospective_member') => {
     if (!memberData || !memberId || !adminUser) return;
 
+    if (adminUser.role === 'dinas' && (newStatus === 'approved' || newStatus === 'rejected' || newStatus === 'requires_correction')) {
+        toast({ title: "Aksi Tidak Diizinkan", description: "Admin Dinas tidak dapat mengubah status pendaftaran anggota.", variant: "destructive" });
+        return;
+    }
+
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminComments.trim()) {
       toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive" });
       return;
@@ -287,9 +292,8 @@ export default function MemberDetailPage() {
     return <Badge variant={badgeVariant} className={badgeClass}>{statusText}</Badge>;
   };
 
-  const canPerformActions = memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction';
-  const canModifyApprovedOrRejected = memberData.status === 'approved' || memberData.status === 'rejected';
   const canApprove = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
+  const canRejectOrRequestCorrection = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
 
   const handlePrint = () => {
     window.print();
@@ -499,8 +503,8 @@ export default function MemberDetailPage() {
                     <Button 
                         onClick={() => handleAdminAction('rejected')} 
                         variant="destructive" 
-                        disabled={isProcessingAction || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
-                        title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk menolak" : ""}
+                        disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
+                        title={!canRejectOrRequestCorrection ? "Admin Dinas hanya dapat memantau dan memberi komentar." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk menolak." : ""}
                     >
                         {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
                         Tolak Pendaftaran
@@ -512,8 +516,8 @@ export default function MemberDetailPage() {
                         onClick={() => handleAdminAction('requires_correction')} 
                         variant="outline" 
                         className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                        disabled={isProcessingAction || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
-                        title={(memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim() ? "Komentar wajib diisi untuk minta perbaikan" : ""}
+                        disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
+                        title={!canRejectOrRequestCorrection ? "Admin Dinas hanya dapat memantau dan memberi komentar." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk minta perbaikan." : ""}
                     >
                         {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
                         Minta Perbaikan Data
@@ -526,7 +530,7 @@ export default function MemberDetailPage() {
                     <CheckSquare className="h-4 w-4 text-green-600" />
                     <AlertTitle className="text-green-700">Anggota Telah Disetujui</AlertTitle>
                     <AlertDescription className="text-green-600">
-                        Anda masih dapat mengubah statusnya menjadi "Ditolak" atau "Minta Perbaikan" jika diperlukan (misalnya jika ada temuan baru). Pastikan untuk mengisi kolom komentar.
+                        Anda masih dapat mengubah statusnya menjadi "Ditolak" atau "Minta Perbaikan" jika diperlukan (memerlukan peran yang sesuai dan mengisi komentar).
                     </AlertDescription>
                 </Alert>
             )}
