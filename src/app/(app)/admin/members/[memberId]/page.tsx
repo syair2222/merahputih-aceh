@@ -111,7 +111,7 @@ export default function MemberDetailPage() {
 
 
   useEffect(() => {
-    if (!authLoading && adminUser && !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+    if (!authLoading && adminUser && !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas' || adminUser.role === 'bank_partner_admin')) {
       router.push('/'); 
     }
   }, [adminUser, authLoading, router]);
@@ -135,6 +135,12 @@ export default function MemberDetailPage() {
         toast({ title: "Aksi Tidak Diizinkan", description: "Admin Dinas tidak dapat mengubah status pendaftaran anggota.", variant: "destructive" });
         return;
     }
+    // bank_partner_admin should also not be able to change status
+    if (adminUser.role === 'bank_partner_admin' && (newStatus === 'approved' || newStatus === 'rejected' || newStatus === 'requires_correction')) {
+        toast({ title: "Aksi Tidak Diizinkan", description: "Admin Bank Mitra tidak dapat mengubah status pendaftaran anggota.", variant: "destructive" });
+        return;
+    }
+
 
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminComments.trim()) {
       toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive" });
@@ -214,7 +220,7 @@ export default function MemberDetailPage() {
     );
   }
 
-  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas')) {
+  if (!adminUser || !(adminUser.role === 'admin_utama' || adminUser.role === 'sekertaris' || adminUser.role === 'bendahara' || adminUser.role === 'dinas' || adminUser.role === 'bank_partner_admin')) {
      return (
         <div className="text-center p-10">
             <Alert variant="destructive">
@@ -294,6 +300,8 @@ export default function MemberDetailPage() {
 
   const canApprove = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
   const canRejectOrRequestCorrection = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
+  const canManageRating = adminUser?.role === 'admin_utama' || adminUser?.role === 'sekertaris' || adminUser?.role === 'bendahara';
+
 
   const handlePrint = () => {
     window.print();
@@ -468,111 +476,125 @@ export default function MemberDetailPage() {
         </CardContent>
       </Card>
       
-      <Card className="no-print">
-        <CardHeader>
-            <CardTitle className="text-xl font-headline text-accent">Aksi Admin</CardTitle>
-            <CardDescription>Lakukan tindakan terhadap pendaftaran anggota ini.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-            <div>
-              <Label htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</Label>
-              <Textarea
-                id="adminComments"
-                value={adminComments}
-                onChange={(e) => setAdminComments(e.target.value)}
-                placeholder="Tuliskan alasan penolakan, permintaan perbaikan, atau catatan lain..."
-                rows={3}
-                className="mt-1"
-                disabled={isProcessingAction}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2 pt-2 items-center">
-                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'rejected') && (
-                    <Button 
-                        onClick={() => handleAdminAction('approved', 'member')} 
-                        disabled={isProcessingAction || !canApprove}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        title={!canApprove ? "Hanya Admin Utama, Sekertaris, atau Bendahara yang dapat menyetujui." : ""}
-                    >
-                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
-                        Setujui Pendaftaran
-                    </Button>
-                )}
-                
-                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
-                    <Button 
-                        onClick={() => handleAdminAction('rejected')} 
-                        variant="destructive" 
-                        disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
-                        title={!canRejectOrRequestCorrection ? "Admin Dinas hanya dapat memantau dan memberi komentar." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk menolak." : ""}
-                    >
-                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
-                        Tolak Pendaftaran
-                    </Button>
-                )}
+      {(canApprove || canRejectOrRequestCorrection || canManageRating) && (
+        <Card className="no-print">
+          <CardHeader>
+              <CardTitle className="text-xl font-headline text-accent">Aksi Admin</CardTitle>
+              <CardDescription>Lakukan tindakan terhadap pendaftaran anggota ini.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+              <div>
+                <Label htmlFor="adminComments">Komentar Admin (Wajib jika menolak atau minta perbaikan)</Label>
+                <Textarea
+                  id="adminComments"
+                  value={adminComments}
+                  onChange={(e) => setAdminComments(e.target.value)}
+                  placeholder="Tuliskan alasan penolakan, permintaan perbaikan, atau catatan lain..."
+                  rows={3}
+                  className="mt-1"
+                  disabled={isProcessingAction || adminUser?.role === 'dinas' || adminUser?.role === 'bank_partner_admin'}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2 items-center">
+                  {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'rejected') && (
+                      <Button 
+                          onClick={() => handleAdminAction('approved', 'member')} 
+                          disabled={isProcessingAction || !canApprove}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          title={!canApprove ? "Hanya Admin Utama, Sekertaris, atau Bendahara yang dapat menyetujui." : ""}
+                      >
+                          {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
+                          Setujui Pendaftaran
+                      </Button>
+                  )}
+                  
+                  {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
+                      <Button 
+                          onClick={() => handleAdminAction('rejected')} 
+                          variant="destructive" 
+                          disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
+                          title={!canRejectOrRequestCorrection ? "Hanya Admin Utama, Sekertaris, atau Bendahara yang dapat melakukan aksi ini." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk menolak." : ""}
+                      >
+                          {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsDown className="mr-2 h-4 w-4" />}
+                          Tolak Pendaftaran
+                      </Button>
+                  )}
 
-                {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
-                    <Button 
-                        onClick={() => handleAdminAction('requires_correction')} 
-                        variant="outline" 
-                        className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                        disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
-                        title={!canRejectOrRequestCorrection ? "Admin Dinas hanya dapat memantau dan memberi komentar." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk minta perbaikan." : ""}
-                    >
-                        {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
-                        Minta Perbaikan Data
-                    </Button>
-                )}
-                 {isProcessingAction && <p className="text-sm text-muted-foreground">Memproses...</p>}
-            </div>
-            {memberData.status === 'approved' && (
-                 <Alert variant="default" className="mt-4 bg-green-50 border-green-300">
-                    <CheckSquare className="h-4 w-4 text-green-600" />
-                    <AlertTitle className="text-green-700">Anggota Telah Disetujui</AlertTitle>
-                    <AlertDescription className="text-green-600">
-                        Anda masih dapat mengubah statusnya menjadi "Ditolak" atau "Minta Perbaikan" jika diperlukan (memerlukan peran yang sesuai dan mengisi komentar).
-                    </AlertDescription>
-                </Alert>
-            )}
-             {memberData.status === 'rejected' && (
-                 <Alert variant="destructive" className="mt-4">
-                    <XSquare className="h-4 w-4" />
-                    <AlertTitle>Anggota Telah Ditolak</AlertTitle>
-                    <AlertDescription>
-                        Anda masih dapat mengubah statusnya menjadi "Disetujui" jika ada pertimbangan baru (memerlukan peran yang sesuai).
-                    </AlertDescription>
-                </Alert>
-            )}
+                  {(memberData.status === 'pending' || memberData.status === 'verified' || memberData.status === 'requires_correction' || memberData.status === 'approved') && (
+                      <Button 
+                          onClick={() => handleAdminAction('requires_correction')} 
+                          variant="outline" 
+                          className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                          disabled={isProcessingAction || !canRejectOrRequestCorrection || ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim())}
+                          title={!canRejectOrRequestCorrection ? "Hanya Admin Utama, Sekertaris, atau Bendahara yang dapat melakukan aksi ini." : ((memberData.status === 'approved' || memberData.status === 'rejected') && !adminComments.trim()) ? "Komentar wajib diisi untuk minta perbaikan." : ""}
+                      >
+                          {isProcessingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
+                          Minta Perbaikan Data
+                      </Button>
+                  )}
+                  {isProcessingAction && <p className="text-sm text-muted-foreground">Memproses...</p>}
+              </div>
+              {memberData.status === 'approved' && (
+                  <Alert variant="default" className="mt-4 bg-green-50 border-green-300">
+                      <CheckSquare className="h-4 w-4 text-green-600" />
+                      <AlertTitle className="text-green-700">Anggota Telah Disetujui</AlertTitle>
+                      <AlertDescription className="text-green-600">
+                          Anda masih dapat mengubah statusnya menjadi "Ditolak" atau "Minta Perbaikan" jika diperlukan (memerlukan peran yang sesuai dan mengisi komentar).
+                      </AlertDescription>
+                  </Alert>
+              )}
+              {memberData.status === 'rejected' && (
+                  <Alert variant="destructive" className="mt-4">
+                      <XSquare className="h-4 w-4" />
+                      <AlertTitle>Anggota Telah Ditolak</AlertTitle>
+                      <AlertDescription>
+                          Anda masih dapat mengubah statusnya menjadi "Disetujui" jika ada pertimbangan baru (memerlukan peran yang sesuai).
+                      </AlertDescription>
+                  </Alert>
+              )}
 
-            <div className="pt-4 border-t">
-                <Label htmlFor="adminRating">Beri Rating Anggota (1-5)</Label>
-                <div className="flex items-center gap-2 mt-1">
-                    <Select 
-                        value={currentAdminRating ? currentAdminRating.toString() : "0"} 
-                        onValueChange={(val) => setCurrentAdminRating(parseInt(val))}
-                        disabled={isProcessingAction}
-                    >
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Pilih Rating" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="0">Pilih Rating</SelectItem>
-                            <SelectItem value="1">1 Bintang</SelectItem>
-                            <SelectItem value="2">2 Bintang</SelectItem>
-                            <SelectItem value="3">3 Bintang</SelectItem>
-                            <SelectItem value="4">4 Bintang</SelectItem>
-                            <SelectItem value="5">5 Bintang</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Button onClick={handleSaveRating} disabled={isProcessingAction || currentAdminRating === (memberData.adminRating || 0) || currentAdminRating === 0}>
-                         {isProcessingAction && currentAdminRating !== (memberData.adminRating || 0) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Star className="mr-2 h-4 w-4" />}
-                        Simpan Rating
-                    </Button>
+              {canManageRating && (
+                <div className="pt-4 border-t">
+                    <Label htmlFor="adminRating">Beri Rating Anggota (1-5)</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Select 
+                            value={currentAdminRating ? currentAdminRating.toString() : "0"} 
+                            onValueChange={(val) => setCurrentAdminRating(parseInt(val))}
+                            disabled={isProcessingAction}
+                        >
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Pilih Rating" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="0">Pilih Rating</SelectItem>
+                                <SelectItem value="1">1 Bintang</SelectItem>
+                                <SelectItem value="2">2 Bintang</SelectItem>
+                                <SelectItem value="3">3 Bintang</SelectItem>
+                                <SelectItem value="4">4 Bintang</SelectItem>
+                                <SelectItem value="5">5 Bintang</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Button onClick={handleSaveRating} disabled={isProcessingAction || currentAdminRating === (memberData.adminRating || 0) || currentAdminRating === 0}>
+                            {isProcessingAction && currentAdminRating !== (memberData.adminRating || 0) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Star className="mr-2 h-4 w-4" />}
+                            Simpan Rating
+                        </Button>
+                    </div>
+                    {memberData.adminRating && <p className="text-xs text-muted-foreground mt-1">Rating saat ini: {memberData.adminRating} bintang.</p>}
                 </div>
-                 {memberData.adminRating && <p className="text-xs text-muted-foreground mt-1">Rating saat ini: {memberData.adminRating} bintang.</p>}
-            </div>
-        </CardContent>
-      </Card>
+              )}
+          </CardContent>
+        </Card>
+      )}
+      { (adminUser?.role === 'dinas' || adminUser?.role === 'bank_partner_admin') && !(canApprove || canRejectOrRequestCorrection || canManageRating) && (
+        <Alert variant="default" className="no-print">
+            <ShieldAlert className="h-4 w-4"/>
+            <AlertTitle>Mode Tampilan Saja</AlertTitle>
+            <AlertDescription>
+                Peran Anda ({adminUser.role?.replace('_',' ').replace(/\b\w/g, l => l.toUpperCase())}) hanya dapat melihat detail anggota ini.
+                Aksi administratif seperti perubahan status atau rating hanya dapat dilakukan oleh Admin Utama, Sekertaris, atau Bendahara Koperasi.
+            </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
