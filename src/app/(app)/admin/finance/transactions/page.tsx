@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, ListChecks, FilePlus, Eye } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, ListChecks, FilePlus, Eye, CheckCircle, CircleAlert, FileText as FileTextIcon } from 'lucide-react'; // Renamed FileText to FileTextIcon
 import type { UserProfile, Transaction } from '@/types';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, getDocs, Timestamp } from 'firebase/firestore';
@@ -20,22 +20,12 @@ import { id as localeID } from 'date-fns/locale';
 
 // Helper function to format status
 const formatTransactionStatus = (status?: Transaction['status']) => {
-  if (!status) return 'Tidak Diketahui';
+  if (!status) return { text: 'Tidak Diketahui', variant: 'outline' as const, Icon: CircleAlert };
   switch (status) {
-    case 'DRAFT': return 'Draft';
-    case 'POSTED': return 'Posted';
-    case 'VOID': return 'Void';
-    default: return status;
-  }
-};
-
-const getStatusBadgeVariant = (status?: Transaction['status']): "default" | "secondary" | "destructive" | "outline" => {
-  if (!status) return "outline";
-  switch (status) {
-    case 'POSTED': return "default"; // Green for posted
-    case 'DRAFT': return "secondary";
-    case 'VOID': return "destructive";
-    default: return "outline";
+    case 'DRAFT': return { text: 'Draft', variant: 'secondary' as const, Icon: FileTextIcon };
+    case 'POSTED': return { text: 'Posted', variant: 'default' as const, Icon: CheckCircle };
+    case 'VOID': return { text: 'Void', variant: 'destructive' as const, Icon: CircleAlert };
+    default: return { text: status, variant: 'outline' as const, Icon: CircleAlert };
   }
 };
 
@@ -60,7 +50,6 @@ export default function AdminTransactionsListPage() {
       const transactionsData = querySnapshot.docs.map(docSnap => ({
         id: docSnap.id,
         ...(docSnap.data() as Omit<Transaction, 'id'>),
-        // Ensure transactionDate is a Date object
         transactionDate: (docSnap.data().transactionDate as Timestamp)?.toDate ? (docSnap.data().transactionDate as Timestamp).toDate() : new Date(docSnap.data().transactionDate),
         createdAt: (docSnap.data().createdAt as Timestamp)?.toDate ? (docSnap.data().createdAt as Timestamp).toDate() : new Date(docSnap.data().createdAt),
       })) as Transaction[];
@@ -165,36 +154,41 @@ export default function AdminTransactionsListPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="font-medium">
-                      {tx.transactionDate instanceof Date ? format(tx.transactionDate, "dd MMM yyyy", { locale: localeID }) : 'N/A'}
-                    </TableCell>
-                    <TableCell>{tx.description}</TableCell>
-                    <TableCell className="hidden md:table-cell">{tx.referenceNumber || '-'}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-right font-mono">
-                      {(tx.totalDebit ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                     <TableCell className="hidden sm:table-cell text-right font-mono">
-                      {(tx.totalCredit ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(tx.status)} className={tx.status === 'POSTED' ? 'bg-green-500 text-white' : ''}>
-                        {formatTransactionStatus(tx.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => toast({ title: "Segera Hadir", description: "Fitur detail transaksi akan segera tersedia." })}
-                        // Implement navigation to detail page: router.push(`/admin/finance/transactions/${tx.id}`)
-                      >
-                        <Eye className="mr-1 h-3 w-3" /> Detail
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {transactions.map((tx) => {
+                  const statusInfo = formatTransactionStatus(tx.status);
+                  return (
+                    <TableRow key={tx.id}>
+                      <TableCell className="font-medium">
+                        {tx.transactionDate instanceof Date ? format(tx.transactionDate, "dd MMM yyyy", { locale: localeID }) : 'N/A'}
+                      </TableCell>
+                      <TableCell>{tx.description}</TableCell>
+                      <TableCell className="hidden md:table-cell">{tx.referenceNumber || '-'}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-right font-mono">
+                        {(tx.totalDebit ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                       <TableCell className="hidden sm:table-cell text-right font-mono">
+                        {(tx.totalCredit ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusInfo.variant} className={statusInfo.variant === 'default' ? 'bg-green-500 text-white' : ''}>
+                          <statusInfo.Icon className="mr-1.5 h-3 w-3" />
+                          {statusInfo.text}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          asChild
+                        >
+                          <Link href={`/admin/finance/transactions/${tx.id}`}>
+                            <Eye className="mr-1 h-3 w-3" /> Detail
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -203,3 +197,5 @@ export default function AdminTransactionsListPage() {
     </div>
   );
 }
+
+    
