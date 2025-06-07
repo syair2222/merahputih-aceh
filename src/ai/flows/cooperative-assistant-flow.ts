@@ -68,7 +68,12 @@ const internalFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await assistantPrompt(input);
-    return output!;
+    if (!output || typeof output.response !== 'string') {
+      console.error('AI prompt did not return a valid output structure. Output received:', output);
+      // Return a response that fits the schema, indicating an internal issue.
+      return { response: "Maaf, sistem AI tidak dapat menghasilkan jawaban yang valid saat ini. Silakan coba lagi nanti atau hubungi dukungan teknis jika masalah berlanjut." };
+    }
+    return output;
   }
 );
 
@@ -77,3 +82,4 @@ export async function cooperativeAssistantFlow(
 ): Promise<CooperativeAssistantOutput> {
   return internalFlow(input);
 }
+

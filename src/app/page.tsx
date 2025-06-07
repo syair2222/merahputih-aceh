@@ -67,11 +67,28 @@ export default function Home() {
     setAiResponse('');
     try {
       const result = await cooperativeAssistantFlow({ query: aiQuestion });
-      setAiResponse(result.response);
+      if (result && typeof result.response === 'string') {
+        setAiResponse(result.response);
+      } else {
+        // This case should ideally be handled by the flow itself returning a valid error response.
+        console.error("AI flow returned unexpected result:", result);
+        setAiResponse("Maaf, terjadi kesalahan internal pada asisten AI.");
+        toast({ title: "Error AI", description: "Respon dari AI tidak sesuai format.", variant: "destructive" });
+      }
     } catch (error) {
       console.error("Error getting AI response:", error);
-      setAiResponse("Maaf, terjadi kesalahan saat menghubungi asisten AI. Silakan coba lagi nanti.");
-      toast({ title: "Error AI", description: "Gagal mendapatkan respon dari asisten AI.", variant: "destructive" });
+      let description = "Gagal mendapatkan respon dari asisten AI.";
+      if (error instanceof Error && error.message) {
+        console.error("Detailed AI error:", error.message);
+        // Check for common API key or configuration issues, but be careful not to expose sensitive details.
+        if (error.message.toLowerCase().includes("api key") || error.message.toLowerCase().includes("permission denied") || error.message.toLowerCase().includes("quota")) {
+            description = "Terjadi masalah dengan konfigurasi layanan AI. Silakan hubungi administrator.";
+        } else if (error.message.includes("AI failed to generate a valid response structure") || error.message.includes("tidak dapat menghasilkan jawaban yang valid")) {
+            description = "Asisten AI tidak dapat memproses permintaan Anda saat ini. Coba lagi nanti.";
+        }
+      }
+      setAiResponse(`Maaf, terjadi kesalahan saat menghubungi asisten AI. ${description} Silakan coba lagi nanti atau hubungi dukungan jika masalah berlanjut.`);
+      toast({ title: "Error Asisten AI", description, variant: "destructive" });
     } finally {
       setIsAiLoading(false);
     }
@@ -113,7 +130,6 @@ export default function Home() {
   return (
     <div className="space-y-8 sm:space-y-12">
       <section className="relative text-center py-8 sm:py-12 rounded-lg shadow-xl overflow-hidden bg-primary/5">
-        {/* Koperasi Indonesia Logo - Top Right */}
         <Image
             src="/images/koperasi_merah_putih.png" 
             alt="Logo Koperasi Merah Putih" 
@@ -123,7 +139,6 @@ export default function Home() {
             data-ai-hint="cooperative logo" 
         />
         
-        {/* Content */}
         <div className="relative container mx-auto px-4 z-10">
           <Image 
             src="/images/logo_koperasi_utama.png"
