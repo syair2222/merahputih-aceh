@@ -37,15 +37,38 @@ export default function AppNavbar() {
     </>
   );
 
+  const getDashboardLink = () => {
+    if (!user) return null;
+    switch (user.role) {
+      case 'admin_utama':
+      case 'sekertaris':
+      case 'bendahara':
+      case 'dinas':
+        return '/admin/dashboard';
+      case 'bank_partner_admin':
+        return '/bank-admin/dashboard';
+      case 'related_agency_admin':
+        return '/agency-admin/dashboard';
+      case 'member':
+        return '/member/dashboard';
+      default:
+        return null; // No dashboard link for prospective_member or other roles
+    }
+  };
+
+  const dashboardLink = getDashboardLink();
+
   const authLinks = loading ? (
     <div className="text-primary-foreground px-3 py-2">Memuat...</div>
   ) : user ? (
     <>
-      <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground hover:text-primary justify-start w-full" asChild onClick={() => setIsMobileMenuOpen(false)}>
-        <Link href={user.role === 'admin_utama' || user.role === 'sekertaris' || user.role === 'bendahara' || user.role === 'dinas' ? '/admin/dashboard' : user.role === 'bank_partner_admin' ? '/bank-admin/dashboard' : user.role === 'related_agency_admin' ? '/agency-admin/dashboard' : '/member/dashboard'}>
-          <LayoutDashboard className="mr-2 h-4 w-4" />Dasbor
-        </Link>
-      </Button>
+      {dashboardLink && (
+        <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground hover:text-primary justify-start w-full" asChild onClick={() => setIsMobileMenuOpen(false)}>
+          <Link href={dashboardLink}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />Dasbor
+          </Link>
+        </Button>
+      )}
       <Button variant="outline" onClick={() => { logout(); setIsMobileMenuOpen(false); }} className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary justify-start w-full">
         <LogOut className="mr-2 h-4 w-4" />Keluar
       </Button>
@@ -79,11 +102,6 @@ export default function AppNavbar() {
                 <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
               </div>
             ) : (
-              // Render a simple, consistent placeholder or null during SSR / pre-hydration
-              // This helps match the server output if it's rendering a simpler version,
-              // or if the server itself renders null for this part due to `isClient` logic.
-              // An empty div or a specific height div can also prevent layout shifts.
-              // For now, `null` is the safest if the server is expected to render nothing here initially.
               <div className="flex flex-col leading-tight" style={{ visibility: 'hidden' }}>
                  <span className="text-xl sm:text-2xl font-headline">Koperasi</span>
                  <span className="text-xs sm:text-sm font-headline">Merah Putih Online</span>
