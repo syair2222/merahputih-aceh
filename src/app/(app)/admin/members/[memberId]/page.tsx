@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon, Handshake } from 'lucide-react';
+import { ArrowLeft, FileText, Eye, Loader2, ShieldAlert, UserCircle, Home, Briefcase, FileBadge, CheckSquare, Coins, XSquare, MessageSquareIcon, ThumbsUp, ThumbsDown, Edit3, Star, Printer, Users as UsersIcon, Handshake, Wallet } from 'lucide-react'; // Added Wallet icon
 import MemberBadges from '@/components/member/member-badges'; // Import MemberBadges
 
 const DetailItem: React.FC<{ label: string; value?: string | ReactNode; fullWidth?: boolean }> = ({ label, value, fullWidth }) => (
@@ -135,12 +135,10 @@ export default function MemberDetailPage() {
         toast({ title: "Aksi Tidak Diizinkan", description: "Admin Dinas tidak dapat mengubah status pendaftaran anggota.", variant: "destructive" });
         return;
     }
-    // bank_partner_admin should also not be able to change status
     if (adminUser.role === 'bank_partner_admin' && (newStatus === 'approved' || newStatus === 'rejected' || newStatus === 'requires_correction')) {
         toast({ title: "Aksi Tidak Diizinkan", description: "Admin Bank Mitra tidak dapat mengubah status pendaftaran anggota.", variant: "destructive" });
         return;
     }
-
 
     if ((newStatus === 'rejected' || newStatus === 'requires_correction') && !adminComments.trim()) {
       toast({ title: "Komentar Wajib", description: "Mohon isi alasan penolakan atau permintaan perbaikan.", variant: "destructive" });
@@ -161,13 +159,37 @@ export default function MemberDetailPage() {
       };
 
       const userUpdateData: any = {
-        status: newStatus, // Mirror status
+        status: newStatus, 
       };
 
       if (newStatus === 'approved') {
         memberUpdateData.memberIdNumber = memberData.memberIdNumber || generateMemberIdNumber();
         if (newRole) userUpdateData.role = newRole;
         userUpdateData.status = 'approved'; 
+
+        // Award points to referrer if applicable
+        if (memberData.referralSource === 'member' && memberData.referrerMemberId) {
+          const referrerMemberDocRef = doc(db, 'members', memberData.referrerMemberId);
+          const referrerDocSnap = await getDoc(referrerMemberDocRef);
+          if (referrerDocSnap.exists()) {
+            await updateDoc(referrerMemberDocRef, {
+              currentPointsBalance: increment(5000) // 5000 points for successful referral
+            });
+            toast({
+              title: "Poin Diberikan ke Perekrut!",
+              description: `Anggota ${referrerDocSnap.data().fullName || memberData.referrerMemberId} mendapatkan 5000 poin karena merekrut ${memberData.fullName}.`,
+              duration: 7000
+            });
+          } else {
+            console.warn(`Referrer member document ${memberData.referrerMemberId} not found.`);
+             toast({
+              title: "Peringatan Poin Perekrut",
+              description: `Poin tidak dapat diberikan ke perekrut (ID: ${memberData.referrerMemberId}) karena data anggota perekrut tidak ditemukan.`,
+              variant: "destructive",
+              duration: 10000
+            });
+          }
+        }
       } else if (newStatus === 'pending' || newStatus === 'verified'){ 
          if (newRole) userUpdateData.role = newRole; 
       }
@@ -394,7 +416,7 @@ export default function MemberDetailPage() {
             <Coins className="h-10 w-10 text-primary" />
             <div>
                 <CardTitle className="text-2xl font-headline text-accent">Komitmen, Status & Aktivitas</CardTitle>
-                 <CardDescription>Komitmen keuangan, status pendaftaran, rating admin, dan aktivitas rekomendasi.</CardDescription>
+                 <CardDescription>Komitmen keuangan, status pendaftaran, rating admin, aktivitas rekomendasi, dan saldo poin.</CardDescription>
             </div>
         </CardHeader>
         <CardContent className="pt-6 grid md:grid-cols-2 gap-x-8 gap-y-4">
@@ -422,6 +444,17 @@ export default function MemberDetailPage() {
                   {memberData.recommendationsGivenCount || 0} kali
                 </div>
               } 
+            />
+            <DetailItem 
+                label="Saldo Poin Saat Ini"
+                value={
+                    <div className="flex items-center">
+                        <Wallet className="mr-2 h-5 w-5 text-green-600" />
+                        <span className="font-semibold text-lg">
+                            {(memberData.currentPointsBalance || 0).toLocaleString('id-ID')} Poin
+                        </span>
+                    </div>
+                }
             />
              {memberData.adminComments && (
                 <DetailItem label="Komentar Admin Sebelumnya" value={memberData.adminComments} fullWidth />
