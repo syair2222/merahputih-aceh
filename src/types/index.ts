@@ -85,6 +85,7 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
   adminRating?: number; // Rating 1-5 by admin
   recommendationsGivenCount?: number;
+  currentPointsBalance?: number;
 
   // New fields for bank details
   bankName?: string; // Nama Bank
@@ -125,6 +126,9 @@ export interface UserProfile { // Already exists in auth-context.ts, but definin
   role?: 'admin_utama' | 'sekertaris' | 'bendahara' | 'dinas' | 'member' | 'prospective_member' | 'bank_partner_admin' | 'related_agency_admin';
   status?: 'pending' | 'approved' | 'rejected' | 'verified' | 'requires_correction';
   memberIdNumber?: string;
+  isWorker?: boolean;
+  workerDepartment?: string;
+  monthlyPointSalary?: number;
 }
 
 
@@ -243,6 +247,9 @@ export interface UserDocument { // This is often what's stored in a 'users' coll
   lastLogin?: any; // Firestore Timestamp
   updatedAt?: any; // Firestore Timestamp for user document updates
   updatedBy?: string; // UID of admin who last updated the user document
+  isWorker?: boolean;
+  workerDepartment?: string;
+  monthlyPointSalary?: number;
 }
 
 // --- Financial System Types ---
@@ -307,5 +314,6 @@ export interface TransactionInput {
   userId?: string;
 }
 // --- End Financial System Types ---
+
 
 
