@@ -11,11 +11,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star, CalendarDays, Building } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, DollarSign, UserCircle, CheckSquare, XSquare, MessageSquare, FileText, ExternalLink, Paperclip, Users, Info, Star, CalendarDays, Building, Coins } from 'lucide-react';
 import type { FacilityApplicationData, RequestedRecommendation } from '@/types';
 import { FacilityTypeOptions, MemberBusinessAreaOptions, statusDisplay as adminStatusDisplayKoperasi } from '@/types';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp, increment } from 'firebase/firestore'; // Added increment
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -171,6 +171,36 @@ export default function AdminFacilityApplicationDetailPage() {
             lastUpdated: serverTimestamp(),
         });
         toast({ title: "Keputusan Koperasi Disimpan", description: `Pengajuan telah diubah statusnya menjadi ${localStatusDisplayKoperasi[newStatus]}.`});
+        
+        // Award points if loan approved
+        if (newStatus === 'approved' && application.facilityType === 'Pinjaman Usaha' && application.userId && application.quantityOrAmount) {
+            let loanAmountNumber = 0;
+            const cleanedAmountString = application.quantityOrAmount.replace(/\D/g, ''); // Remove all non-digits
+            if (cleanedAmountString) {
+                loanAmountNumber = parseInt(cleanedAmountString, 10);
+            }
+
+            if (!isNaN(loanAmountNumber) && loanAmountNumber > 0) {
+                const memberDocRef = doc(db, 'members', application.userId);
+                await updateDoc(memberDocRef, {
+                    currentPointsBalance: increment(loanAmountNumber)
+                });
+                toast({
+                    title: "Poin Diberikan",
+                    description: `Sebanyak ${loanAmountNumber.toLocaleString('id-ID')} poin berhasil ditambahkan ke saldo poin anggota ${application.memberFullName}.`,
+                    duration: 7000
+                });
+            } else {
+                console.warn(`Could not parse loan amount for points: ${application.quantityOrAmount} for application ${application.id}`);
+                toast({
+                    title: "Peringatan Poin",
+                    description: `Poin tidak dapat diberikan secara otomatis karena format jumlah pinjaman (${application.quantityOrAmount}) tidak valid. Harap perbarui saldo poin anggota secara manual jika perlu.`,
+                    variant: "destructive",
+                    duration: 10000
+                });
+            }
+        }
+        
         fetchApplication(); 
     } catch (err) {
         console.error("Error updating application status (Koperasi):", err);
