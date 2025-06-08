@@ -65,7 +65,7 @@ export default function AdminTransactionsListPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (user && allowedRoles.includes(user.role)) {
+      if (user && allowedRoles.includes(user.role as UserProfile['role'])) {
         fetchTransactions();
       } else if (user) {
         router.push('/admin/dashboard');
@@ -75,7 +75,7 @@ export default function AdminTransactionsListPage() {
     }
   }, [user, authLoading, router, fetchTransactions, allowedRoles]);
 
-  if (authLoading || (pageLoading && !transactions.length && !error)) {
+  if (authLoading || pageLoading) { // Simplified main loader condition
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -84,7 +84,7 @@ export default function AdminTransactionsListPage() {
     );
   }
 
-  if (!user || !allowedRoles.includes(user.role)) {
+  if (!user || !allowedRoles.includes(user.role as UserProfile['role'])) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
@@ -127,20 +127,15 @@ export default function AdminTransactionsListPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          {pageLoading && !error && (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-3 text-muted-foreground">Memuat transaksi...</p>
-            </div>
-          )}
-          {!pageLoading && !error && transactions.length === 0 && (
+          {/* In-card loader removed as main loader handles pageLoading */}
+          {!error && transactions.length === 0 && (
             <Alert>
               <ListChecks className="h-4 w-4" />
               <AlertTitle>Belum Ada Transaksi</AlertTitle>
               <AlertDescription>Belum ada transaksi keuangan yang dicatat. Mulai dengan mencatat transaksi baru.</AlertDescription>
             </Alert>
           )}
-          {!pageLoading && !error && transactions.length > 0 && (
+          {!error && transactions.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -197,5 +192,3 @@ export default function AdminTransactionsListPage() {
     </div>
   );
 }
-
-    
