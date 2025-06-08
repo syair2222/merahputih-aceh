@@ -4,11 +4,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog, Building, Award } from "lucide-react"; // Changed UsersCog to UserCog, Added Building, Award
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog, Building, Award, Coins, Wallet } from "lucide-react"; // Added Coins, Wallet
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react"; // Added useState
+import { useEffect, useState } from "react"; 
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // Dummy data for dashboard stats
@@ -17,13 +17,15 @@ const dashboardStats = [
   { title: "Anggota Terverifikasi", value: "120", icon: Users, color: "text-green-500", link: "/admin/members?status=approved" },
   { title: "Pengajuan Fasilitas", value: "15", icon: DollarSign, color: "text-yellow-500", link: "/admin/facilities?status=pending" },
   { title: "Pengumuman Aktif", value: "5", icon: MessageSquare, color: "text-purple-500", link: "/admin/announcements" },
+  { title: "Total Poin Beredar", value: "Segera Hadir", icon: Coins, color: "text-orange-500", link: "#", note: "Fitur ini akan menampilkan total poin semua anggota." },
 ];
 
 const baseQuickActions = [
   { label: "Verifikasi Anggota Baru", href: "/admin/applications", icon: FileText },
   { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: Edit }, 
   { label: "Lihat Laporan Keuangan", href: "/admin/reports", icon: BarChart },
-  { label: "Proses Gaji Poin Pekerja", href: "/admin/finance/worker-salary-processing", icon: Award }, // New Action
+  { label: "Proses Gaji Poin Pekerja", href: "/admin/finance/worker-salary-processing", icon: Award },
+  { label: "Manajemen Poin Anggota", href: "/admin/members", icon: Wallet, note: "Lihat saldo poin per anggota." }, // New Action
   { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, 
 ];
 
@@ -49,19 +51,12 @@ export default function AdminDashboardPage() {
     }
 
     // Dynamically add User Management if admin_utama
-    const currentQuickActions = [...baseQuickActions]; // Create a mutable copy
+    const currentQuickActions = [...baseQuickActions]; 
     if (user.role === 'admin_utama') {
         if (!currentQuickActions.find(action => action.href === "/admin/user-management")) {
-             currentQuickActions.push({ label: "Manajemen Pengguna", href: "/admin/user-management", icon: UserCog }); // Changed UsersCog to UserCog
+             currentQuickActions.push({ label: "Manajemen Pengguna", href: "/admin/user-management", icon: UserCog }); 
         }
     }
-    // Example: If bank_partner_admin, maybe add a link to their specific dashboard or a relevant section
-    // For now, they just get access to the main admin dashboard content.
-    // if (user.role === 'bank_partner_admin') {
-    //   if (!currentQuickActions.find(action => action.href === "/bank-admin/dashboard")) {
-    //     currentQuickActions.push({ label: "Dasbor Bank", href: "/bank-admin/dashboard", icon: Building });
-    //   }
-    // }
     setQuickActions(currentQuickActions);
 
   }, [user, authLoading, router]);
@@ -96,7 +91,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"> {/* Adjusted grid for 5 items */}
         {dashboardStats.map((stat) => (
           <Card key={stat.title} className="shadow-lg hover:shadow-xl transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -105,9 +100,13 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{stat.value}</div>
-              <Link href={stat.link || '#'} className="text-xs text-muted-foreground hover:text-primary transition-colors">
-                Lihat Detail &rarr;
-              </Link>
+              {stat.value === "Segera Hadir" && stat.note ? (
+                <p className="text-xs text-muted-foreground">{stat.note}</p>
+              ) : (
+                <Link href={stat.link || '#'} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                  Lihat Detail &rarr;
+                </Link>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -119,13 +118,11 @@ export default function AdminDashboardPage() {
           <CardTitle className="text-xl font-headline text-accent">Aksi Cepat</CardTitle>
           <CardDescription>Akses cepat ke fitur-fitur penting admin.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4"> {/* Adjusted grid for potentially more items */}
           {quickActions.map((action) => {
-            // Hide "Manajemen Pengguna" if not admin_utama
             if (action.href === "/admin/user-management" && user.role !== 'admin_utama') {
               return null;
             }
-            // Hide "Proses Gaji Poin Pekerja" if not admin_utama
             if (action.href === "/admin/finance/worker-salary-processing" && user.role !== 'admin_utama') {
               return null;
             }
@@ -135,6 +132,7 @@ export default function AdminDashboardPage() {
                   <action.icon className="h-6 w-6 mr-3 text-primary" />
                   <span className="flex flex-col">
                     <span className="font-semibold">{action.label}</span>
+                    {action.note && <span className="text-xs text-muted-foreground">{action.note}</span>}
                   </span>
                 </Link>
               </Button>
@@ -150,15 +148,6 @@ export default function AdminDashboardPage() {
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">Belum ada data aktivitas terbaru atau tugas tertunda. Fitur ini sedang dalam pengembangan.</p>
-          {/* Example item:
-          <div className="flex items-center justify-between py-2 border-b last:border-b-0">
-            <div>
-              <p className="font-medium">Pendaftar baru: Budi Santoso</p>
-              <p className="text-xs text-muted-foreground">2 jam yang lalu</p>
-            </div>
-            <Button variant="ghost" size="sm" asChild><Link href="/admin/members/xxx">Verifikasi</Link></Button>
-          </div> 
-          */}
         </CardContent>
       </Card>
       
@@ -178,7 +167,6 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       )}
-
     </div>
   );
 }
