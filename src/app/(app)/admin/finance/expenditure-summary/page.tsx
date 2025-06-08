@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, ShieldAlert, Loader2, BarChartHorizontalBig, Construction } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, BarChartHorizontalBig, Construction, Info } from 'lucide-react'; // Added Info here
 import type { UserProfile } from '@/types';
 
 const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara', 'dinas'];
