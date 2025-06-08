@@ -15,7 +15,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3, Star, Handshake, BellRing } from "lucide-react";
+import { Loader2, UserCircle, CheckCircle, AlertCircle, Clock, ShieldAlert, DollarSign, FileText, MessageSquare, History, ListChecks, Send, Eye, MailQuestion, Edit3, Star, Handshake, BellRing, Wallet } from "lucide-react"; // Added Wallet
 import ApplyFacilityForm from "@/components/member/apply-facility-form";
 import MemberBadges from "@/components/member/member-badges"; // Import MemberBadges
 
@@ -87,7 +87,7 @@ export default function MemberDashboardPage() {
         if (data.registrationTimestamp && typeof (data.registrationTimestamp as any).seconds === 'number') {
             registrationDate = new Date((data.registrationTimestamp as any).seconds * 1000);
         }
-        setMemberData({ ...data, registrationTimestamp: registrationDate, adminRating: data.adminRating, recommendationsGivenCount: data.recommendationsGivenCount });
+        setMemberData({ ...data, registrationTimestamp: registrationDate, adminRating: data.adminRating, recommendationsGivenCount: data.recommendationsGivenCount, currentPointsBalance: data.currentPointsBalance });
       } else {
         console.warn("Data anggota tidak ditemukan di Firestore untuk UID:", user.uid);
         setMemberData(null);
@@ -279,148 +279,173 @@ export default function MemberDashboardPage() {
 
       {!memberLoading && memberData && (
         <>
-          <Card className="shadow-lg border">
-            <CardHeader>
-              <CardTitle className="text-xl font-headline text-accent">Status Keanggotaan Anda</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {(() => {
-                let statusIcon: React.ReactNode = null;
-                let statusColorClass = "";
-                let registrationDateFormatted = 'Tidak diketahui';
-                let adminCommentsMessage: React.ReactNode = null;
-                let pendingMessage: string | null = null;
-                let approvedMessage: string | null = null;
-                let requiresCorrectionMessage: string | null = null;
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="shadow-lg border">
+              <CardHeader>
+                <CardTitle className="text-xl font-headline text-accent">Status Keanggotaan Anda</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(() => {
+                  let statusIcon: React.ReactNode = null;
+                  let statusColorClass = "";
+                  let registrationDateFormatted = 'Tidak diketahui';
+                  let adminCommentsMessage: React.ReactNode = null;
+                  let pendingMessage: string | null = null;
+                  let approvedMessage: string | null = null;
+                  let requiresCorrectionMessage: string | null = null;
 
-                const memberStatus = memberData.status || 'Tidak Diketahui';
-                const memberStatusText = statusDisplayMemberRegistration[memberStatus] || `Status: ${memberStatus}`;
+                  const memberStatus = memberData.status || 'Tidak Diketahui';
+                  const memberStatusText = statusDisplayMemberRegistration[memberStatus] || `Status: ${memberStatus}`;
 
+                  try {
+                      if (memberData.registrationTimestamp) {
+                          let dateValue: Date | null = null;
+                          if (memberData.registrationTimestamp instanceof Date) {
+                              dateValue = memberData.registrationTimestamp;
+                          } else if (typeof memberData.registrationTimestamp === 'string') {
+                              dateValue = new Date(memberData.registrationTimestamp);
+                          } else if (typeof memberData.registrationTimestamp === 'object' &&
+                                    memberData.registrationTimestamp !== null &&
+                                    'seconds' in (memberData.registrationTimestamp as any) &&
+                                    typeof (memberData.registrationTimestamp as any).seconds === 'number') {
+                              dateValue = new Date((memberData.registrationTimestamp as any).seconds * 1000);
+                          }
 
-                 try {
-                    if (memberData.registrationTimestamp) {
-                        let dateValue: Date | null = null;
-                        if (memberData.registrationTimestamp instanceof Date) {
-                             dateValue = memberData.registrationTimestamp;
-                        } else if (typeof memberData.registrationTimestamp === 'string') {
-                            dateValue = new Date(memberData.registrationTimestamp);
-                        } else if (typeof memberData.registrationTimestamp === 'object' &&
-                                   memberData.registrationTimestamp !== null &&
-                                   'seconds' in (memberData.registrationTimestamp as any) &&
-                                   typeof (memberData.registrationTimestamp as any).seconds === 'number') {
-                            dateValue = new Date((memberData.registrationTimestamp as any).seconds * 1000);
-                        }
+                          if (dateValue && !isNaN(dateValue.getTime())) {
+                              registrationDateFormatted = dateValue.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+                          } else {
+                              registrationDateFormatted = 'Format tanggal tidak valid';
+                          }
+                      } else {
+                        registrationDateFormatted = 'Tanggal tidak tersedia';
+                      }
+                  } catch (e) {
+                      console.error("Error memformat tanggal registrasi:", e);
+                      registrationDateFormatted = 'Error format tanggal';
+                  }
 
-                        if (dateValue && !isNaN(dateValue.getTime())) {
-                            registrationDateFormatted = dateValue.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-                        } else {
-                            registrationDateFormatted = 'Format tanggal tidak valid';
-                        }
-                    } else {
-                      registrationDateFormatted = 'Tanggal tidak tersedia';
-                    }
-                } catch (e) {
-                    console.error("Error memformat tanggal registrasi:", e);
-                    registrationDateFormatted = 'Error format tanggal';
-                }
+                  switch (memberStatus) {
+                    case 'approved':
+                      statusIcon = <CheckCircle className="h-5 w-5 text-green-500" />;
+                      statusColorClass = "text-green-700 bg-green-100 border-green-300";
+                      approvedMessage = "Anda dapat mengakses semua fasilitas koperasi yang tersedia.";
+                      if (memberData.businessFields && memberData.businessFields.length > 0) {
+                        approvedMessage += ` Anda terdaftar pada bidang usaha: ${memberData.businessFields.join(', ')}.` +
+                                          `${memberData.businessFields.includes('Lainnya') && memberData.otherBusinessField ? ` (${memberData.otherBusinessField})` : ''}`;
+                      }
+                      break;
+                    case 'pending':
+                      statusIcon = <Clock className="h-5 w-5 text-yellow-500" />;
+                      statusColorClass = "text-yellow-700 bg-yellow-100 border-yellow-300";
+                      pendingMessage = "Pendaftaran Anda sedang ditinjau. Fitur pengajuan fasilitas akan aktif setelah disetujui.";
+                      break;
+                    case 'rejected':
+                      statusIcon = <AlertCircle className="h-5 w-5 text-red-500" />;
+                      statusColorClass = "text-red-700 bg-red-100 border-red-300";
+                      if (memberData.adminComments) {
+                        adminCommentsMessage = (
+                          <div className="p-3 border-l-4 border-red-500 bg-red-50 rounded mt-2">
+                            <p className="font-semibold text-red-700">Komentar Admin:</p>
+                            <p className="text-sm text-red-600">{memberData.adminComments}</p>
+                          </div>
+                        );
+                      }
+                      break;
+                    case 'verified':
+                      statusIcon = <CheckCircle className="h-5 w-5 text-blue-500" />;
+                      statusColorClass = "text-blue-700 bg-blue-100 border-blue-300";
+                      pendingMessage = "Akun Anda terverifikasi, menunggu persetujuan akhir dari admin untuk fasilitas.";
+                      break;
+                    case 'requires_correction':
+                      statusIcon = <Edit3 className="h-5 w-5 text-orange-500" />;
+                      statusColorClass = "text-orange-700 bg-orange-100 border-orange-300";
+                      requiresCorrectionMessage = "Admin meminta Anda untuk memperbaiki data pendaftaran.";
+                      if (memberData.adminComments) {
+                        adminCommentsMessage = (
+                          <div className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded mt-2">
+                            <p className="font-semibold text-orange-700">Komentar Admin:</p>
+                            <p className="text-sm text-orange-600">{memberData.adminComments}</p>
+                            <Button variant="link" size="sm" className="p-0 h-auto mt-1 text-orange-600" asChild>
+                              <Link href="/profile/edit">Perbaiki Data Sekarang</Link>
+                            </Button>
+                          </div>
+                        );
+                      }
+                      break;
+                    default:
+                      statusIcon = <AlertCircle className="h-5 w-5 text-gray-500" />;
+                      statusColorClass = "text-gray-700 bg-gray-100 border-gray-300";
+                  }
 
-
-                switch (memberStatus) {
-                  case 'approved':
-                    statusIcon = <CheckCircle className="h-5 w-5 text-green-500" />;
-                    statusColorClass = "text-green-700 bg-green-100 border-green-300";
-                    approvedMessage = "Anda dapat mengakses semua fasilitas koperasi yang tersedia.";
-                    if (memberData.businessFields && memberData.businessFields.length > 0) {
-                       approvedMessage += ` Anda terdaftar pada bidang usaha: ${memberData.businessFields.join(', ')}.` +
-                                         `${memberData.businessFields.includes('Lainnya') && memberData.otherBusinessField ? ` (${memberData.otherBusinessField})` : ''}`;
-                    }
-                    break;
-                  case 'pending':
-                    statusIcon = <Clock className="h-5 w-5 text-yellow-500" />;
-                    statusColorClass = "text-yellow-700 bg-yellow-100 border-yellow-300";
-                    pendingMessage = "Pendaftaran Anda sedang ditinjau. Fitur pengajuan fasilitas akan aktif setelah disetujui.";
-                    break;
-                  case 'rejected':
-                    statusIcon = <AlertCircle className="h-5 w-5 text-red-500" />;
-                    statusColorClass = "text-red-700 bg-red-100 border-red-300";
-                    if (memberData.adminComments) {
-                      adminCommentsMessage = (
-                        <div className="p-3 border-l-4 border-red-500 bg-red-50 rounded mt-2">
-                          <p className="font-semibold text-red-700">Komentar Admin:</p>
-                          <p className="text-sm text-red-600">{memberData.adminComments}</p>
-                        </div>
-                      );
-                    }
-                    break;
-                  case 'verified':
-                    statusIcon = <CheckCircle className="h-5 w-5 text-blue-500" />;
-                    statusColorClass = "text-blue-700 bg-blue-100 border-blue-300";
-                    pendingMessage = "Akun Anda terverifikasi, menunggu persetujuan akhir dari admin untuk fasilitas.";
-                    break;
-                   case 'requires_correction':
-                    statusIcon = <Edit3 className="h-5 w-5 text-orange-500" />;
-                    statusColorClass = "text-orange-700 bg-orange-100 border-orange-300";
-                    requiresCorrectionMessage = "Admin meminta Anda untuk memperbaiki data pendaftaran.";
-                     if (memberData.adminComments) {
-                      adminCommentsMessage = (
-                        <div className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded mt-2">
-                          <p className="font-semibold text-orange-700">Komentar Admin:</p>
-                          <p className="text-sm text-orange-600">{memberData.adminComments}</p>
-                          <Button variant="link" size="sm" className="p-0 h-auto mt-1 text-orange-600" asChild>
-                            <Link href="/profile/edit">Perbaiki Data Sekarang</Link>
-                          </Button>
-                        </div>
-                      );
-                    }
-                    break;
-                  default:
-                    statusIcon = <AlertCircle className="h-5 w-5 text-gray-500" />;
-                    statusColorClass = "text-gray-700 bg-gray-100 border-gray-300";
-                }
-
-                return (
-                  <>
-                    <div className={`flex items-center p-3 rounded-md border ${statusColorClass}`}>
-                      {statusIcon}
-                      <p className="ml-2 font-semibold">{memberStatusText}</p>
-                    </div>
-                    <p><strong>Nomor Anggota:</strong> {memberData.memberIdNumber || 'Belum Ditetapkan'}</p>
-                    <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
-                    {memberData.adminRating && memberData.adminRating > 0 && (
-                        <div className="pt-2">
-                            <p className="font-semibold text-sm">Rating dari Koperasi:</p>
-                            <div className="flex items-center">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                    <Star
-                                    key={i}
-                                    className={`h-5 w-5 ${i < memberData.adminRating! ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
-                                    />
-                                ))}
-                                <span className="ml-2 text-xs text-muted-foreground">({memberData.adminRating} dari 5 bintang)</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">Ini adalah penilaian umum dari koperasi. Jaga terus kepercayaan dan partisipasi Anda!</p>
-                        </div>
-                    )}
-                     {(memberData.recommendationsGivenCount !== undefined && memberData.recommendationsGivenCount >= 0) && (
-                      <div className="pt-2">
-                        <p className="font-semibold text-sm flex items-center">
-                          <Handshake className="mr-2 h-4 w-4 text-primary" /> Rekomendasi Diberikan:
-                        </p>
-                        <p className="text-md">{memberData.recommendationsGivenCount} kali</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Terima kasih atas kontribusi Anda dalam memberikan rekomendasi!
-                        </p>
+                  return (
+                    <>
+                      <div className={`flex items-center p-3 rounded-md border ${statusColorClass}`}>
+                        {statusIcon}
+                        <p className="ml-2 font-semibold">{memberStatusText}</p>
                       </div>
-                    )}
-                    {adminCommentsMessage}
-                    {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
-                    {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
-                    {requiresCorrectionMessage && !adminCommentsMessage && <p className="text-sm text-orange-700">{requiresCorrectionMessage}</p>}
-                  </>
-                );
-              })()}
-            </CardContent>
-          </Card>
+                      <p><strong>Nomor Anggota:</strong> {memberData.memberIdNumber || 'Belum Ditetapkan'}</p>
+                      <p><strong>Tanggal Pendaftaran:</strong> {registrationDateFormatted}</p>
+                      {memberData.adminRating && memberData.adminRating > 0 && (
+                          <div className="pt-2">
+                              <p className="font-semibold text-sm">Rating dari Koperasi:</p>
+                              <div className="flex items-center">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                      <Star
+                                      key={i}
+                                      className={`h-5 w-5 ${i < memberData.adminRating! ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                                      />
+                                  ))}
+                                  <span className="ml-2 text-xs text-muted-foreground">({memberData.adminRating} dari 5 bintang)</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">Ini adalah penilaian umum dari koperasi. Jaga terus kepercayaan dan partisipasi Anda!</p>
+                          </div>
+                      )}
+                      {(memberData.recommendationsGivenCount !== undefined && memberData.recommendationsGivenCount >= 0) && (
+                        <div className="pt-2">
+                          <p className="font-semibold text-sm flex items-center">
+                            <Handshake className="mr-2 h-4 w-4 text-primary" /> Rekomendasi Diberikan:
+                          </p>
+                          <p className="text-md">{memberData.recommendationsGivenCount} kali</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Terima kasih atas kontribusi Anda dalam memberikan rekomendasi!
+                          </p>
+                        </div>
+                      )}
+                      {adminCommentsMessage}
+                      {pendingMessage && <p className="text-sm text-yellow-700">{pendingMessage}</p>}
+                      {approvedMessage && <p className="text-sm text-green-700">{approvedMessage}</p>}
+                      {requiresCorrectionMessage && !adminCommentsMessage && <p className="text-sm text-orange-700">{requiresCorrectionMessage}</p>}
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-lg border">
+              <CardHeader>
+                <CardTitle className="text-xl font-headline text-accent flex items-center">
+                    <Wallet className="mr-2 h-6 w-6"/> Dompet Poin Saya
+                </CardTitle>
+                <CardDescription>Lihat saldo poin Anda dan riwayat transaksi poin.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Saldo Poin Saat Ini:</p>
+                    <p className="text-4xl font-bold text-primary">
+                        {(memberData.currentPointsBalance || 0).toLocaleString('id-ID')} Poin
+                    </p>
+                </div>
+                <Alert variant="default" className="bg-blue-50 border-blue-300 text-blue-700">
+                    <ShieldAlert className="h-4 w-4 text-blue-600"/>
+                    <AlertTitle className="text-blue-800 font-semibold">Segera Hadir</AlertTitle>
+                    <AlertDescription>
+                        Fitur riwayat transaksi poin dan penukaran poin akan segera tersedia di sini.
+                    </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          </div>
+
 
           {memberData.status === 'approved' && (
             <>
