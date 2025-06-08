@@ -85,6 +85,11 @@ export interface MemberRegistrationData extends PersonalData, ResidentialStatus,
   lastAdminActionTimestamp?: any; // Firestore Timestamp for last admin action
   adminRating?: number; // Rating 1-5 by admin
   recommendationsGivenCount?: number;
+
+  // New fields for bank details
+  bankName?: string; // Nama Bank
+  bankAccountName?: string; // Nama Pemilik Rekening
+  bankAccountNumber?: string; // Nomor Rekening Bank
 }
 
 
@@ -267,6 +272,8 @@ export interface Transaction {
   createdBy?: string; // UID of the user who created the transaction
   postedAt?: any; // Firestore Timestamp, if status is POSTED
   postedBy?: string; // UID of the user who posted
+  totalDebit?: number;
+  totalCredit?: number;
 }
 
 export interface TransactionDetail {
@@ -286,5 +293,19 @@ export interface FinancialPeriod {
   status: 'OPEN' | 'CLOSED';
 }
 
+
+// --- Input Type for Anomaly Detection Flow ---
+export interface TransactionInput {
+  id: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+  amount: number;
+  accountId?: string;
+  accountName?: string;
+  type?: 'debit' | 'credit';
+  category?: string;
+  userId?: string;
+}
 // --- End Financial System Types ---
+
 
