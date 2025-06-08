@@ -11,10 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ShieldAlert, Loader2, AlertCircle, Construction, SearchCheck, FileJson, Play, BarChartHorizontalBig } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Loader2, AlertCircle, Construction, SearchCheck, FileJson, Play, BarChartHorizontalBig, Download } from 'lucide-react'; // Added Download
 import type { UserProfile, TransactionInput } from '@/types';
 import { analyzeFinancialTransactions, AnalyzeTransactionsInput, AnalyzeTransactionsOutput, PotentialAnomaly } from '@/ai/flows/analyze-financial-transactions';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
 
@@ -134,6 +135,69 @@ export default function AnomalyDetectionPage() {
     }
   };
 
+  const escapeCsvCell = (cellData: string | number | undefined | null): string => {
+    if (cellData === undefined || cellData === null) {
+      return '';
+    }
+    const stringData = String(cellData);
+    // If the string contains a comma, double quote, or newline, enclose it in double quotes
+    if (stringData.includes(',') || stringData.includes('"') || stringData.includes('\n')) {
+      // Escape existing double quotes by doubling them
+      return `"${stringData.replace(/"/g, '""')}"`;
+    }
+    return stringData;
+  };
+
+  const handleExportToCsv = () => {
+    if (!analysisResult || !analysisResult.anomaliesFound || analysisResult.anomaliesFound.length === 0) {
+      toast({ title: "Tidak Ada Data", description: "Tidak ada data anomali untuk diekspor.", variant: "destructive" });
+      return;
+    }
+
+    const headers = [
+      "ID Transaksi", "Tanggal", "Deskripsi Transaksi", "Jumlah", "ID Akun", "Nama Akun", 
+      "Jenis Anomali", "Alasan", "Severity", "Saran", "Risk Score", "AI Risk Assessment"
+    ];
+
+    const rows = analysisResult.anomaliesFound.map(anomaly => [
+      escapeCsvCell(anomaly.transaction.id),
+      escapeCsvCell(anomaly.transaction.date),
+      escapeCsvCell(anomaly.transaction.description),
+      escapeCsvCell(anomaly.transaction.amount),
+      escapeCsvCell(anomaly.transaction.accountId),
+      escapeCsvCell(anomaly.transaction.accountName),
+      escapeCsvCell(anomaly.anomalyType),
+      escapeCsvCell(anomaly.reason),
+      escapeCsvCell(anomaly.severity),
+      escapeCsvCell(anomaly.suggestion),
+      escapeCsvCell(anomaly.riskScore),
+      escapeCsvCell(anomaly.aiRiskAssessment),
+    ]);
+
+    let csvContent = headers.join(",") + "\n";
+    rows.forEach(rowArray => {
+      let row = rowArray.join(",");
+      csvContent += row + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
+      link.setAttribute("href", url);
+      link.setAttribute("download", `laporan_anomali_${timestamp}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: "Ekspor Berhasil", description: "Data anomali telah diekspor ke CSV." });
+    } else {
+      toast({ title: "Ekspor Gagal", description: "Browser Anda tidak mendukung fitur unduhan ini.", variant: "destructive" });
+    }
+  };
+
 
   if (authLoading) {
     return (
@@ -237,7 +301,7 @@ export default function AnomalyDetectionPage() {
                 </TableHeader>
                 <TableBody>
                   {analysisResult.anomaliesFound.map((anomaly, index) => (
-                    <TableRow key={`${anomaly.transaction.id}-${index}`} className="bg-red-50/30 hover:bg-red-100/50 dark:bg-red-900/10 dark:hover:bg-red-800/20">
+                    <TableRow key={`${anomaly.transaction.id}-${index}-${anomaly.anomalyType}`} className="bg-red-50/30 hover:bg-red-100/50 dark:bg-red-900/10 dark:hover:bg-red-800/20">
                       <TableCell className="font-mono text-xs">{anomaly.transaction.id}</TableCell>
                       <TableCell>{anomaly.transaction.date}</TableCell>
                       <TableCell className="max-w-xs truncate">{anomaly.transaction.description}</TableCell>
@@ -252,6 +316,14 @@ export default function AnomalyDetectionPage() {
               </Table>
             )}
           </CardContent>
+           {analysisResult && analysisResult.anomaliesFound.length > 0 && (
+            <CardFooter>
+              <Button onClick={handleExportToCsv} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Ekspor ke CSV
+              </Button>
+            </CardFooter>
+          )}
         </Card>
       )}
 
@@ -301,3 +373,4 @@ export default function AnomalyDetectionPage() {
     </div>
   );
 }
+
