@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UserCog, BookText, FilePlus, ListChecks } from 'lucide-react'; // Added ListChecks
+import { LayoutDashboard, UserCircle, Settings, LogOut, FileText, DollarSign, BarChart3, Megaphone, ShieldAlert, History, Send, MessageSquare, Briefcase, Building, UserCog, BookText, FilePlus, ListChecks, SearchCheck } from 'lucide-react'; // Added SearchCheck
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -83,7 +83,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   if (isFinanceAdmin) {
     baseAdminMenuItems.push({ href: '/admin/finance/coa', label: 'Manajemen CoA', icon: BookText });
     baseAdminMenuItems.push({ href: '/admin/finance/transactions/new', label: 'Catat Transaksi Baru', icon: FilePlus });
-    baseAdminMenuItems.push({ href: '/admin/finance/transactions', label: 'Daftar Transaksi', icon: ListChecks }); // New Menu Item
+    baseAdminMenuItems.push({ href: '/admin/finance/transactions', label: 'Daftar Transaksi', icon: ListChecks });
+    baseAdminMenuItems.push({ href: '/admin/finance/anomaly-detection', label: 'Deteksi Anomali', icon: SearchCheck });
   }
   
   baseAdminMenuItems.push({ href: '/admin/announcements', label: 'Pengumuman', icon: Megaphone });
@@ -207,4 +208,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
