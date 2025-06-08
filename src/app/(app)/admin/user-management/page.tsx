@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save, Trash2, Briefcase } from 'lucide-react'; // Added Briefcase
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox'; // Added Checkbox import
+import { FormDescription } from '@/components/ui/form'; // For checkbox description
 
 interface DisplayUser extends UserDocument {
   lastLogin?: Date | string; // For display purposes
@@ -119,6 +121,7 @@ export default function UserManagementPage() {
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
   const [editingRole, setEditingRole] = useState<UserProfile['role'] | undefined>(undefined);
   const [editingStatus, setEditingStatus] = useState<UserProfile['status'] | undefined>(undefined);
+  const [editingIsWorker, setEditingIsWorker] = useState<boolean>(false); // New state for isWorker
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const [userToDelete, setUserToDelete] = useState<DisplayUser | null>(null);
@@ -175,6 +178,7 @@ export default function UserManagementPage() {
     setSelectedUserForEdit(userToEdit);
     setEditingRole(userToEdit.role);
     setEditingStatus(userToEdit.status);
+    setEditingIsWorker(userToEdit.isWorker || false); // Initialize isWorker state
     setIsEditModalOpen(true);
   };
 
@@ -194,6 +198,7 @@ export default function UserManagementPage() {
         await updateDoc(userDocRef, {
             role: editingRole,
             status: editingStatus,
+            isWorker: editingIsWorker, // Save isWorker status
             updatedAt: serverTimestamp(),
             updatedBy: currentAdminUser.uid,
         });
@@ -207,11 +212,11 @@ export default function UserManagementPage() {
         }
 
 
-        toast({title: "Perubahan Disimpan", description: `Peran untuk ${selectedUserForEdit.displayName} telah diperbarui.`});
+        toast({title: "Perubahan Disimpan", description: `Data untuk ${selectedUserForEdit.displayName} telah diperbarui.`});
         setIsEditModalOpen(false);
         fetchUsers(); 
     } catch(error) {
-        console.error("Error updating user role/status:", error);
+        console.error("Error updating user data:", error);
         toast({title: "Gagal Menyimpan", description: "Terjadi kesalahan.", variant: "destructive"});
     } finally {
         setIsSubmittingEdit(false);
@@ -231,17 +236,14 @@ export default function UserManagementPage() {
 
     setIsDeletingUser(true);
     try {
-      // Delete from 'users' collection
       await deleteDoc(doc(db, 'users', userToDelete.uid));
       
-      // Attempt to delete from 'members' collection (if exists)
       try {
         await deleteDoc(doc(db, 'members', userToDelete.uid));
       } catch (memberDeleteError) {
         console.warn(`Could not delete member record for ${userToDelete.uid} (may not exist):`, memberDeleteError);
       }
 
-      // Attempt to delete from 'usernames' collection (if username exists and is a non-empty string)
       if (userToDelete.username && typeof userToDelete.username === 'string' && userToDelete.username.trim() !== '') {
         try {
           await deleteDoc(doc(db, 'usernames', userToDelete.username.toLowerCase()));
@@ -325,6 +327,7 @@ export default function UserManagementPage() {
                   <TableHead className="hidden md:table-cell">Email</TableHead>
                   <TableHead>Peran</TableHead>
                   <TableHead className="hidden sm:table-cell">Status Akun</TableHead>
+                  <TableHead className="hidden lg:table-cell">Pekerja?</TableHead>
                   <TableHead className="hidden lg:table-cell">Login Terakhir</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -345,6 +348,9 @@ export default function UserManagementPage() {
                         </Badge>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
+                        {userDoc.isWorker ? <Badge className="bg-blue-500 text-white"><Briefcase className="mr-1 h-3 w-3"/>Ya</Badge> : <Badge variant="outline">Tidak</Badge>}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {userDoc.lastLogin instanceof Date 
                         ? userDoc.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }) 
                         : typeof userDoc.lastLogin === 'string' ? userDoc.lastLogin : 'Belum Pernah'}
@@ -353,7 +359,7 @@ export default function UserManagementPage() {
                       <Button variant="outline" size="sm" onClick={() => handleEditUser(userDoc)} disabled={userDoc.uid === currentAdminUser.uid && userDoc.role === 'admin_utama'}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                       </Button>
-                      {userDoc.uid !== currentAdminUser.uid && ( // Prevent deleting self
+                      {userDoc.uid !== currentAdminUser.uid && ( 
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm" onClick={() => setUserToDelete(userDoc)} disabled={isDeletingUser}>
@@ -399,7 +405,7 @@ export default function UserManagementPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Pengguna: {selectedUserForEdit.displayName}</DialogTitle>
-              <DialogDescription>Ubah peran dan status untuk pengguna ini.</DialogDescription>
+              <DialogDescription>Ubah peran, status, dan status pekerja untuk pengguna ini.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -431,6 +437,17 @@ export default function UserManagementPage() {
                     ))}
                     </SelectContent>
                 </Select>
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="isWorker-edit" className="text-right col-span-1">Pekerja</Label>
+                <div className="col-span-3 flex items-center space-x-2">
+                    <Checkbox
+                        id="isWorker-edit"
+                        checked={editingIsWorker}
+                        onCheckedChange={(checked) => setEditingIsWorker(Boolean(checked))}
+                    />
+                    <FormDescription>Tandai jika pengguna ini adalah pekerja aktif koperasi.</FormDescription>
+                </div>
               </div>
                {selectedUserForEdit.uid === currentAdminUser.uid && selectedUserForEdit.role === 'admin_utama' && editingRole !== 'admin_utama' && (
                     <Alert variant="destructive" className="col-span-4">
