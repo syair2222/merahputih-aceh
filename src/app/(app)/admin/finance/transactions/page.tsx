@@ -29,6 +29,8 @@ const formatTransactionStatus = (status?: Transaction['status']) => {
   }
 };
 
+// Define allowedRoles outside the component to prevent re-creation on renders
+const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
 
 export default function AdminTransactionsListPage() {
   const { user, loading: authLoading } = useAuth();
@@ -38,8 +40,6 @@ export default function AdminTransactionsListPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
 
   const fetchTransactions = useCallback(async () => {
     setPageLoading(true);
@@ -75,7 +75,7 @@ export default function AdminTransactionsListPage() {
     }
   }, [user, authLoading, router, fetchTransactions, allowedRoles]);
 
-  if (authLoading || pageLoading) { // Simplified main loader condition
+  if (authLoading || pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -127,7 +127,6 @@ export default function AdminTransactionsListPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          {/* In-card loader removed as main loader handles pageLoading */}
           {!error && transactions.length === 0 && (
             <Alert>
               <ListChecks className="h-4 w-4" />
@@ -192,3 +191,4 @@ export default function AdminTransactionsListPage() {
     </div>
   );
 }
+
