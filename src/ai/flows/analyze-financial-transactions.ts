@@ -110,7 +110,7 @@ Instructions:
 2.  **Specific Transaction Review**:
     *   Review all transactions, not just those that might be flagged by simple rules.
     *   Identify any transactions that seem unusual, out of place, or warrant further investigation based on their description, amount, account used, or combination of factors, even if they don't match an explicit 'suspicious keyword' or exceed the 'large transaction threshold'.
-    *   For transactions you identify as potentially risky or unusual, provide a specific `aiRiskAssessment` explaining your reasoning.
+    *   For transactions you identify as potentially risky or unusual, provide a specific \\\`aiRiskAssessment\\\` explaining your reasoning.
     *   If the rule-based system might flag a transaction (e.g., for being large or containing a keyword), and you have additional insights or agree/disagree with the potential severity, note this in your assessment for that transaction. You can suggest if its risk score should be adjusted.
 3.  **Format**: Structure your findings in the 'overallAssessment' and 'specificTransactionAssessments' fields as per the output schema.
 
