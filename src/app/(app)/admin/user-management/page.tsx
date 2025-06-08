@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save, Trash2, Briefcase } from 'lucide-react'; // Added Briefcase
+import { ArrowLeft, Loader2, ShieldAlert, UserCog, Edit, Save, Trash2, Briefcase } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -40,11 +40,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox'; // Added Checkbox import
-import { FormDescription } from '@/components/ui/form'; // For checkbox description
+import { Checkbox } from '@/components/ui/checkbox';
+import { FormDescription } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+
 
 interface DisplayUser extends UserDocument {
-  lastLogin?: Date | string; // For display purposes
+  lastLogin?: Date | string; 
 }
 
 const roleOptions: UserProfile['role'][] = [
@@ -121,7 +123,9 @@ export default function UserManagementPage() {
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
   const [editingRole, setEditingRole] = useState<UserProfile['role'] | undefined>(undefined);
   const [editingStatus, setEditingStatus] = useState<UserProfile['status'] | undefined>(undefined);
-  const [editingIsWorker, setEditingIsWorker] = useState<boolean>(false); // New state for isWorker
+  const [editingIsWorker, setEditingIsWorker] = useState<boolean>(false);
+  const [editingWorkerDepartment, setEditingWorkerDepartment] = useState<string>('');
+  const [editingMonthlyPointSalary, setEditingMonthlyPointSalary] = useState<string>('');
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const [userToDelete, setUserToDelete] = useState<DisplayUser | null>(null);
@@ -178,7 +182,9 @@ export default function UserManagementPage() {
     setSelectedUserForEdit(userToEdit);
     setEditingRole(userToEdit.role);
     setEditingStatus(userToEdit.status);
-    setEditingIsWorker(userToEdit.isWorker || false); // Initialize isWorker state
+    setEditingIsWorker(userToEdit.isWorker || false);
+    setEditingWorkerDepartment(userToEdit.workerDepartment || '');
+    setEditingMonthlyPointSalary(userToEdit.monthlyPointSalary !== undefined && userToEdit.monthlyPointSalary !== null ? String(userToEdit.monthlyPointSalary) : '');
     setIsEditModalOpen(true);
   };
 
@@ -195,13 +201,25 @@ export default function UserManagementPage() {
     setIsSubmittingEdit(true);
     try {
         const userDocRef = doc(db, 'users', selectedUserForEdit.uid);
-        await updateDoc(userDocRef, {
+        
+        const updatePayload: any = {
             role: editingRole,
             status: editingStatus,
-            isWorker: editingIsWorker, // Save isWorker status
+            isWorker: editingIsWorker,
             updatedAt: serverTimestamp(),
             updatedBy: currentAdminUser.uid,
-        });
+        };
+
+        if (editingIsWorker) {
+            updatePayload.workerDepartment = editingWorkerDepartment.trim() || null;
+            const salaryNumber = parseInt(editingMonthlyPointSalary, 10);
+            updatePayload.monthlyPointSalary = !isNaN(salaryNumber) ? salaryNumber : null;
+        } else {
+            updatePayload.workerDepartment = null; 
+            updatePayload.monthlyPointSalary = null;
+        }
+        
+        await updateDoc(userDocRef, updatePayload);
 
         if (selectedUserForEdit.role !== 'member' && editingRole === 'member' && editingStatus === 'approved') {
             const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
@@ -210,7 +228,6 @@ export default function UserManagementPage() {
              const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
              await updateDoc(memberDocRef, { status: 'pending', lastAdminActionTimestamp: serverTimestamp() }).catch(e => console.warn("Could not update member status for", selectedUserForEdit.uid, e));
         }
-
 
         toast({title: "Perubahan Disimpan", description: `Data untuk ${selectedUserForEdit.displayName} telah diperbarui.`});
         setIsEditModalOpen(false);
@@ -328,7 +345,9 @@ export default function UserManagementPage() {
                   <TableHead>Peran</TableHead>
                   <TableHead className="hidden sm:table-cell">Status Akun</TableHead>
                   <TableHead className="hidden lg:table-cell">Pekerja?</TableHead>
-                  <TableHead className="hidden lg:table-cell">Login Terakhir</TableHead>
+                  <TableHead className="hidden lg:table-cell">Departemen</TableHead>
+                  <TableHead className="hidden lg:table-cell text-right">Gaji Poin</TableHead>
+                  <TableHead className="hidden xl:table-cell">Login Terakhir</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -350,7 +369,11 @@ export default function UserManagementPage() {
                     <TableCell className="hidden lg:table-cell">
                         {userDoc.isWorker ? <Badge className="bg-blue-500 text-white"><Briefcase className="mr-1 h-3 w-3"/>Ya</Badge> : <Badge variant="outline">Tidak</Badge>}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="hidden lg:table-cell">{userDoc.isWorker && userDoc.workerDepartment ? userDoc.workerDepartment : '-'}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-right font-mono">
+                        {userDoc.isWorker && userDoc.monthlyPointSalary !== undefined && userDoc.monthlyPointSalary !== null ? userDoc.monthlyPointSalary.toLocaleString('id-ID') : '-'}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
                       {userDoc.lastLogin instanceof Date 
                         ? userDoc.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }) 
                         : typeof userDoc.lastLogin === 'string' ? userDoc.lastLogin : 'Belum Pernah'}
@@ -399,13 +422,15 @@ export default function UserManagementPage() {
         <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
             if (!isOpen) {
                 setSelectedUserForEdit(null); 
+                setEditingWorkerDepartment(''); 
+                setEditingMonthlyPointSalary('');
             }
             setIsEditModalOpen(isOpen);
         }}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[525px]">
             <DialogHeader>
               <DialogTitle>Edit Pengguna: {selectedUserForEdit.displayName}</DialogTitle>
-              <DialogDescription>Ubah peran, status, dan status pekerja untuk pengguna ini.</DialogDescription>
+              <DialogDescription>Ubah peran, status, dan detail pekerja untuk pengguna ini.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -439,7 +464,7 @@ export default function UserManagementPage() {
                 </Select>
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="isWorker-edit" className="text-right col-span-1">Pekerja</Label>
+                <Label htmlFor="isWorker-edit" className="text-right col-span-1">Pekerja Koperasi</Label>
                 <div className="col-span-3 flex items-center space-x-2">
                     <Checkbox
                         id="isWorker-edit"
@@ -449,6 +474,31 @@ export default function UserManagementPage() {
                     <FormDescription>Tandai jika pengguna ini adalah pekerja aktif koperasi.</FormDescription>
                 </div>
               </div>
+              {editingIsWorker && (
+                <>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="workerDepartment-edit" className="text-right col-span-1">Departemen</Label>
+                    <Input
+                      id="workerDepartment-edit"
+                      value={editingWorkerDepartment}
+                      onChange={(e) => setEditingWorkerDepartment(e.target.value)}
+                      className="col-span-3"
+                      placeholder="Cth: Keuangan, Pemasaran"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="monthlyPointSalary-edit" className="text-right col-span-1">Gaji Poin Bulanan</Label>
+                    <Input
+                      id="monthlyPointSalary-edit"
+                      type="number"
+                      value={editingMonthlyPointSalary}
+                      onChange={(e) => setEditingMonthlyPointSalary(e.target.value)}
+                      className="col-span-3"
+                      placeholder="Cth: 50000"
+                    />
+                  </div>
+                </>
+              )}
                {selectedUserForEdit.uid === currentAdminUser.uid && selectedUserForEdit.role === 'admin_utama' && editingRole !== 'admin_utama' && (
                     <Alert variant="destructive" className="col-span-4">
                         <ShieldAlert className="h-4 w-4" />
