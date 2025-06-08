@@ -53,6 +53,9 @@ const formatAccountType = (type: ChartOfAccountItem['accountType']) => {
   }
 };
 
+// Define allowedRoles outside the component to prevent re-creation on renders
+const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
+
 export default function AdminCoAPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -72,9 +75,6 @@ export default function AdminCoAPage() {
   const [accountToDelete, setAccountToDelete] = useState<ChartOfAccountItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-
-  const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
-
   const createForm = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
@@ -84,7 +84,7 @@ export default function AdminCoAPage() {
 
   const editForm = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
-    defaultValues: { // Default values for edit form will be set when modal opens
+    defaultValues: { 
       accountId: '', accountName: '', parentId: '', description: '', isActive: true,
     },
   });
@@ -119,7 +119,7 @@ export default function AdminCoAPage() {
         router.push('/login');
       }
     }
-  }, [user, authLoading, router, fetchAccounts, allowedRoles]);
+  }, [user, authLoading, router, fetchAccounts, allowedRoles]); // allowedRoles is now stable
 
   const handleCreateAccount = async (values: AccountFormValues) => {
     if (!user) {
@@ -187,7 +187,6 @@ export default function AdminCoAPage() {
     }
     setIsSubmittingEdit(true);
     try {
-        // accountId cannot be changed, so no uniqueness check needed here for it.
         const accountDocRef = doc(db, 'chartOfAccounts', editingAccount.id);
         await updateDoc(accountDocRef, {
             accountName: values.accountName,
@@ -222,12 +221,10 @@ export default function AdminCoAPage() {
     }
     setIsDeleting(true);
     try {
-      // TODO: Add validation: Cannot delete if balance is not zero or if transactions exist.
-      // For now, direct delete.
       await deleteDoc(doc(db, 'chartOfAccounts', accountToDelete.id));
       toast({ title: "Sukses", description: `Akun "${accountToDelete.accountName}" berhasil dihapus.` });
-      setAccountToDelete(null); // Close dialog
-      fetchAccounts(); // Refresh list
+      setAccountToDelete(null); 
+      fetchAccounts(); 
     } catch (err) {
       console.error("Error deleting account:", err);
       toast({ title: "Gagal Menghapus Akun", description: "Terjadi kesalahan saat menghapus akun.", variant: "destructive" });
@@ -235,7 +232,6 @@ export default function AdminCoAPage() {
       setIsDeleting(false);
     }
   };
-
 
   if (authLoading || pageLoading) {
     return (
@@ -291,7 +287,6 @@ export default function AdminCoAPage() {
         </div>
       </div>
 
-      {/* Edit Account Dialog */}
       <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => { setIsEditModalOpen(isOpen); if (!isOpen) setEditingAccount(null); }}>
         <DialogContent className="sm:max-w-[525px]">
           <DialogHeader><DialogTitle>Edit Akun: {editingAccount?.accountName}</DialogTitle><DialogDescription>Perbarui detail akun.</DialogDescription></DialogHeader>
@@ -310,7 +305,6 @@ export default function AdminCoAPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Account Alert Dialog */}
       <AlertDialog open={!!accountToDelete} onOpenChange={(isOpen) => { if(!isOpen) setAccountToDelete(null);}}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -330,17 +324,16 @@ export default function AdminCoAPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-
       <Card className="shadow-lg">
         <CardHeader><CardTitle className="text-xl font-headline text-accent">Daftar Akun</CardTitle><CardDescription>Kelola semua akun dalam pencatatan keuangan koperasi.</CardDescription></CardHeader>
         <CardContent>
           {error && (<Alert variant="destructive" className="mb-4"><ShieldAlert className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>)}
           
-          {!error && !pageLoading && accounts.length === 0 && (
+          {!pageLoading && !error && accounts.length === 0 && (
             <Alert><BookText className="h-4 w-4" /><AlertTitle>Belum Ada Akun</AlertTitle><AlertDescription>Mulai dengan menambahkan akun baru.</AlertDescription></Alert>
           )}
           
-          {!error && !pageLoading && accounts.length > 0 && (
+          {!pageLoading && !error && accounts.length > 0 && (
             <Table>
               <TableHeader><TableRow><TableHead>ID Akun</TableHead><TableHead>Nama Akun</TableHead><TableHead className="hidden md:table-cell">Tipe</TableHead><TableHead className="hidden sm:table-cell">Saldo Normal</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
               <TableBody>
