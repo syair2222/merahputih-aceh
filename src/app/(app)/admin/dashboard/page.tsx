@@ -4,7 +4,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog, Building } from "lucide-react"; // Changed UsersCog to UserCog, Added Building
+import { BarChart, Users, FileText, MessageSquare, DollarSign, Settings, Loader2, ShieldAlert, Edit, UserCog, Building, Award } from "lucide-react"; // Changed UsersCog to UserCog, Added Building, Award
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ const baseQuickActions = [
   { label: "Verifikasi Anggota Baru", href: "/admin/applications", icon: FileText },
   { label: "Buat Pengumuman", href: "/admin/announcements/new", icon: Edit }, 
   { label: "Lihat Laporan Keuangan", href: "/admin/reports", icon: BarChart },
+  { label: "Proses Gaji Poin Pekerja", href: "/admin/finance/worker-salary-processing", icon: Award }, // New Action
   { label: "Pengaturan Koperasi", href: "/admin/settings", icon: Settings }, 
 ];
 
@@ -122,6 +123,10 @@ export default function AdminDashboardPage() {
           {quickActions.map((action) => {
             // Hide "Manajemen Pengguna" if not admin_utama
             if (action.href === "/admin/user-management" && user.role !== 'admin_utama') {
+              return null;
+            }
+            // Hide "Proses Gaji Poin Pekerja" if not admin_utama
+            if (action.href === "/admin/finance/worker-salary-processing" && user.role !== 'admin_utama') {
               return null;
             }
             return (
