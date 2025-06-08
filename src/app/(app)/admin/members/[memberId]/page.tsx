@@ -177,7 +177,7 @@ export default function MemberDetailPage() {
             });
             toast({
               title: "Poin Diberikan ke Perekrut!",
-              description: `Anggota ${referrerDocSnap.data().fullName || memberData.referrerMemberId} mendapatkan 5000 poin karena merekrut ${memberData.fullName}.`,
+              description: `Anggota ${referrerDocSnap.data()?.fullName || memberData.referrerMemberId} mendapatkan 5000 poin karena merekrut ${memberData.fullName}.`,
               duration: 7000
             });
           } else {
@@ -632,3 +632,4 @@ export default function MemberDetailPage() {
   );
 }
 
+    
