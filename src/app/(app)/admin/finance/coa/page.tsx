@@ -237,7 +237,7 @@ export default function AdminCoAPage() {
   };
 
 
-  if (authLoading || (pageLoading && !accounts.length && !error)) {
+  if (authLoading || pageLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -335,9 +335,12 @@ export default function AdminCoAPage() {
         <CardHeader><CardTitle className="text-xl font-headline text-accent">Daftar Akun</CardTitle><CardDescription>Kelola semua akun dalam pencatatan keuangan koperasi.</CardDescription></CardHeader>
         <CardContent>
           {error && (<Alert variant="destructive" className="mb-4"><ShieldAlert className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>)}
-          {pageLoading && !error && (<div className="flex items-center justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-3 text-muted-foreground">Memuat akun...</p></div>)}
-          {!pageLoading && !error && accounts.length === 0 && (<Alert><BookText className="h-4 w-4" /><AlertTitle>Belum Ada Akun</AlertTitle><AlertDescription>Mulai dengan menambahkan akun baru.</AlertDescription></Alert>)}
-          {!pageLoading && !error && accounts.length > 0 && (
+          
+          {!error && !pageLoading && accounts.length === 0 && (
+            <Alert><BookText className="h-4 w-4" /><AlertTitle>Belum Ada Akun</AlertTitle><AlertDescription>Mulai dengan menambahkan akun baru.</AlertDescription></Alert>
+          )}
+          
+          {!error && !pageLoading && accounts.length > 0 && (
             <Table>
               <TableHeader><TableRow><TableHead>ID Akun</TableHead><TableHead>Nama Akun</TableHead><TableHead className="hidden md:table-cell">Tipe</TableHead><TableHead className="hidden sm:table-cell">Saldo Normal</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
               <TableBody>
