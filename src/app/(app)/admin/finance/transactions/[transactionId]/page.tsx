@@ -50,6 +50,7 @@ export default function TransactionDetailPage() {
   const allowedRoles: Array<UserProfile['role']> = ['admin_utama', 'sekertaris', 'bendahara'];
 
   const fetchTransactionDetails = useCallback(async () => {
+    console.log(`fetchTransactionDetails called for ID: ${transactionId}`);
     if (!transactionId) {
       setError("ID Transaksi tidak valid.");
       setPageLoading(false);
@@ -57,6 +58,8 @@ export default function TransactionDetailPage() {
     }
     setPageLoading(true);
     setError(null);
+    setTransaction(null); // Clear previous transaction data
+
     try {
       // Fetch transaction header
       const transactionDocRef = doc(db, 'transactions', transactionId);
@@ -77,14 +80,16 @@ export default function TransactionDetailPage() {
       // Fetch account names for details
       const accountIds = [...new Set(detailsData.map(d => d.accountId))];
       const accountsData: Record<string, { name: string, type: ChartOfAccountItem['accountType'] }> = {};
+      
       if (accountIds.length > 0) {
-        // Firestore 'in' query limit is 10, chunk if necessary (not shown for brevity here, assuming <10 unique accounts per tx)
          const accountsQuery = query(collection(db, 'chartOfAccounts'), where('accountId', 'in', accountIds));
          const accountsSnapshot = await getDocs(accountsQuery);
          accountsSnapshot.forEach(accDoc => {
            const accData = accDoc.data() as ChartOfAccountItem;
            accountsData[accData.accountId] = { name: accData.accountName, type: accData.accountType };
          });
+      } else {
+        console.log("No account IDs to fetch from details.");
       }
       
       const enrichedDetails = detailsData.map(detail => ({
@@ -93,34 +98,59 @@ export default function TransactionDetailPage() {
         accountType: accountsData[detail.accountId]?.type,
       }));
 
-      setTransaction({
-        ...transactionData,
-        details: enrichedDetails,
-        transactionDate: (transactionData.transactionDate as Timestamp)?.toDate ? (transactionData.transactionDate as Timestamp).toDate() : new Date(transactionData.transactionDate),
-        createdAt: (transactionData.createdAt as Timestamp)?.toDate ? (transactionData.createdAt as Timestamp).toDate() : new Date(transactionData.createdAt),
-        postedAt: (transactionData.postedAt as Timestamp)?.toDate ? (transactionData.postedAt as Timestamp).toDate() : transactionData.postedAt ? new Date(transactionData.postedAt) : undefined,
-      });
+      try {
+        setTransaction({
+          ...transactionData,
+          details: enrichedDetails,
+          transactionDate: (transactionData.transactionDate as Timestamp)?.toDate ? (transactionData.transactionDate as Timestamp).toDate() : new Date(transactionData.transactionDate),
+          createdAt: (transactionData.createdAt as Timestamp)?.toDate ? (transactionData.createdAt as Timestamp).toDate() : new Date(transactionData.createdAt),
+          postedAt: (transactionData.postedAt && (transactionData.postedAt as Timestamp)?.toDate) ? (transactionData.postedAt as Timestamp).toDate() : (transactionData.postedAt ? new Date(transactionData.postedAt) : undefined),
+        });
+      } catch (processingError) {
+        console.error("Error processing transaction data for state:", processingError);
+        setError('Gagal memproses data transaksi yang diterima.');
+        // setPageLoading(false) will be called in finally
+      }
 
     } catch (err) {
       console.error("Error fetching transaction details:", err);
       setError('Gagal memuat detail transaksi.');
-      toast({ title: "Error", description: "Gagal memuat detail transaksi.", variant: "destructive" });
+      if (err instanceof Error) {
+        toast({ title: "Error Memuat Data", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Error Memuat Data", description: "Terjadi kesalahan yang tidak diketahui.", variant: "destructive" });
+      }
     } finally {
+      console.log("fetchTransactionDetails finally block: setting pageLoading to false");
       setPageLoading(false);
     }
   }, [transactionId, toast]);
 
   useEffect(() => {
-    if (!authLoading) {
-      if (user && allowedRoles.includes(user.role)) {
-        fetchTransactionDetails();
-      } else if (user) {
-        router.push('/admin/dashboard'); // Redirect if not authorized
-      } else {
-        router.push('/login'); // Redirect if not logged in
-      }
+    console.log("TransactionDetailPage useEffect triggered. AuthLoading:", authLoading, "User:", !!user);
+    if (authLoading) {
+      console.log("Still auth loading, returning.");
+      return;
     }
-  }, [user, authLoading, router, fetchTransactionDetails, allowedRoles]);
+
+    if (user) {
+      console.log("User object exists. Role:", user.role);
+      if (user.role && allowedRoles.includes(user.role)) {
+        console.log("User authorized. Calling fetchTransactionDetails.");
+        fetchTransactionDetails();
+      } else {
+        console.log("User not authorized for this page. Redirecting.");
+        toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk melihat halaman ini.", variant: "destructive" });
+        router.push('/admin/dashboard'); 
+      }
+    } else {
+      console.log("No user found. Redirecting to login.");
+      router.push('/login');
+    }
+  // `allowedRoles` is a constant, so it's not needed in deps.
+  // `toast` function from `useToast` is stable.
+  }, [user, authLoading, router, fetchTransactionDetails]);
+
 
   if (authLoading || pageLoading) {
     return (
@@ -131,15 +161,17 @@ export default function TransactionDetailPage() {
     );
   }
 
-  if (!user || !allowedRoles.includes(user.role)) {
+  // This check should ideally be covered by the useEffect redirect logic,
+  // but as a safeguard for rendering if redirects are slow or state is inconsistent.
+  if (!user || (user.role && !allowedRoles.includes(user.role))) {
     return (
       <div className="text-center p-10">
         <Alert variant="destructive">
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Akses Ditolak</AlertTitle>
-          <AlertDescription>Anda tidak memiliki izin untuk melihat halaman ini.</AlertDescription>
+          <AlertDescription>Memverifikasi ulang izin Anda atau mengalihkan...</AlertDescription>
         </Alert>
-        <Button onClick={() => router.push('/admin/dashboard')} className="mt-4">Kembali ke Dasbor Admin</Button>
+         <Loader2 className="h-8 w-8 animate-spin text-primary mt-4" />
       </div>
     );
   }
@@ -153,14 +185,30 @@ export default function TransactionDetailPage() {
     );
   }
 
-  if (!transaction) {
+  if (!transaction && !pageLoading) { // Added !pageLoading to ensure this shows after loading attempt
     return (
       <div className="text-center p-10">
-        <Alert><CircleAlert className="h-4 w-4" /><AlertTitle>Data Tidak Ditemukan</AlertTitle><AlertDescription>Transaksi yang Anda cari tidak ditemukan.</AlertDescription></Alert>
+        <Alert><CircleAlert className="h-4 w-4" /><AlertTitle>Data Tidak Ditemukan</AlertTitle><AlertDescription>Transaksi yang Anda cari tidak ditemukan atau ada masalah saat memuatnya.</AlertDescription></Alert>
         <Button onClick={() => router.push('/admin/finance/transactions')} variant="outline" className="mt-4"><ArrowLeft className="mr-2 h-4 w-4" /> Kembali ke Daftar</Button>
       </div>
     );
   }
+  
+  // If transaction is null at this point, it implies an issue not caught by error state
+  // but also not stuck in pageLoading. This check ensures transaction is available.
+  if (!transaction) {
+      return (
+          <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+              <Alert variant="default">
+                  <CircleAlert className="h-4 w-4" />
+                  <AlertTitle>Menyiapkan Data</AlertTitle>
+                  <AlertDescription>Sedang memproses data transaksi, harap tunggu sebentar...</AlertDescription>
+              </Alert>
+               <Loader2 className="h-8 w-8 animate-spin text-primary ml-4" />
+          </div>
+      );
+  }
+
 
   const formatTransactionStatus = (status?: Transaction['status']) => {
     if (!status) return { text: 'Tidak Diketahui', variant: 'outline' as const, Icon: CircleAlert };
@@ -207,10 +255,10 @@ export default function TransactionDetailPage() {
             <DetailItem label="Total Kredit" value={`Rp ${(transaction.totalCredit ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Type} />
             <DetailItem label="Dibuat Oleh (ID)" value={transaction.createdBy} icon={User} />
             <DetailItem label="Dibuat Pada" value={transaction.createdAt instanceof Date ? format(transaction.createdAt, "PPP p", { locale: localeID }) : 'N/A'} icon={CalendarDays} />
-            {transaction.status === 'POSTED' && (
+            {transaction.status === 'POSTED' && transaction.postedBy && transaction.postedAt && (
               <>
                 <DetailItem label="Diposting Oleh (ID)" value={transaction.postedBy} icon={User} />
-                <DetailItem label="Diposting Pada" value={transaction.postedAt instanceof Date ? format(transaction.postedAt, "PPP p", { locale: localeID }) : 'N/A'} icon={CalendarDays} />
+                <DetailItem label="Diposting Pada" value={transaction.postedAt instanceof Date ? format(transaction.postedAt, "PPP p", { locale: localeID }) : (transaction.postedAt ? new Date(transaction.postedAt.toString()).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A')} icon={CalendarDays} />
               </>
             )}
           </dl>
@@ -241,7 +289,7 @@ export default function TransactionDetailPage() {
               </TableHeader>
               <TableBody>
                 {transaction.details.map((detail) => (
-                  <TableRow key={detail.id}>
+                  <TableRow key={detail.id || detail.accountId}>
                     <TableCell className="font-mono">{detail.accountId}</TableCell>
                     <TableCell>{detail.accountName}</TableCell>
                     <TableCell className="text-right font-mono">
