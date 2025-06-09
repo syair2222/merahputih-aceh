@@ -4,8 +4,10 @@
 
 import type { ReactNode } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, serverTimestamp, deleteDoc, type DocumentData, getDoc as getFirestoreDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
@@ -41,13 +43,34 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FormDescription } from '@/components/ui/form';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import * as z from 'zod';
 import { Input } from '@/components/ui/input';
 
 
 interface DisplayUser extends UserDocument {
-  lastLogin?: Date | string; 
+  lastLogin?: Date | string;
 }
+
+// Define the form schema using Zod
+const formSchema = z.object({
+  role: z.enum([
+    'admin_utama', 'sekertaris', 'bendahara', 'dinas', 'member',
+    'prospective_member', 'bank_partner_admin', 'related_agency_admin'
+  ]),
+  status: z.enum(['pending', 'approved', 'rejected', 'verified', 'requires_correction']),
+  isWorker: z.boolean().default(false),
+  workerDepartment: z.string().nullable().optional(),
+  monthlyPointSalary: z.union([z.number().int().min(0), z.literal('')]).nullable().optional().transform(e => e === '' ? null : e),
+});
 
 const roleOptions: UserProfile['role'][] = [
   'admin_utama',
@@ -98,10 +121,10 @@ const getStatusBadgeVariant = (status?: UserProfile['status']): "default" | "sec
     switch (status) {
         case 'approved':
         case 'verified':
-            return "default"; 
+            return "default";
         case 'pending':
         case 'requires_correction':
-            return "secondary"; 
+            return "secondary";
         case 'rejected':
             return "destructive";
         default:
@@ -121,11 +144,6 @@ export default function UserManagementPage() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<DisplayUser | null>(null);
-  const [editingRole, setEditingRole] = useState<UserProfile['role'] | undefined>(undefined);
-  const [editingStatus, setEditingStatus] = useState<UserProfile['status'] | undefined>(undefined);
-  const [editingIsWorker, setEditingIsWorker] = useState<boolean>(false);
-  const [editingWorkerDepartment, setEditingWorkerDepartment] = useState<string>('');
-  const [editingMonthlyPointSalary, setEditingMonthlyPointSalary] = useState<string>('');
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
   const [userToDelete, setUserToDelete] = useState<DisplayUser | null>(null);
@@ -142,7 +160,7 @@ export default function UserManagementPage() {
     try {
       const usersCollectionRef = collection(db, 'users');
       const q = query(usersCollectionRef, orderBy('displayName', 'asc'));
-      const usersSnapshot = await getDocs(q);
+      const usersSnapshot = await getDocs(usersCollectionRef); // Corrected: use getDocs with usersCollectionRef
       const usersList = usersSnapshot.docs.map(docSnap => {
         const data = docSnap.data() as UserDocument;
         let lastLoginDisplay: string | Date = 'N/A';
@@ -150,7 +168,7 @@ export default function UserManagementPage() {
             lastLoginDisplay = (data.lastLogin as unknown as Timestamp).toDate();
         }
         return {
-          id: docSnap.id, 
+          id: docSnap.id,
           ...data,
           lastLogin: lastLoginDisplay,
         };
@@ -170,7 +188,7 @@ export default function UserManagementPage() {
         if (currentAdminUser && currentAdminUser.role === 'admin_utama') {
             fetchUsers();
         } else if (currentAdminUser) {
-            router.push('/admin/dashboard'); 
+            router.push('/admin/dashboard');
             toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk halaman ini.", variant: "destructive"});
         } else {
             router.push('/login');
@@ -178,22 +196,38 @@ export default function UserManagementPage() {
     }
   }, [currentAdminUser, authLoading, router, fetchUsers, toast]);
 
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      role: 'member',
+      status: 'pending',
+      isWorker: false,
+      workerDepartment: '',
+      monthlyPointSalary: '',
+    },
+  });
+
+  const { reset, handleSubmit: handleRHFSubmit, watch, getValues } = form; // Added getValues
+  const editingIsWorker = watch('isWorker');
+
   const handleEditUser = (userToEdit: DisplayUser) => {
     setSelectedUserForEdit(userToEdit);
-    setEditingRole(userToEdit.role);
-    setEditingStatus(userToEdit.status);
-    setEditingIsWorker(userToEdit.isWorker || false);
-    setEditingWorkerDepartment(userToEdit.workerDepartment || '');
-    setEditingMonthlyPointSalary(userToEdit.monthlyPointSalary !== undefined && userToEdit.monthlyPointSalary !== null ? String(userToEdit.monthlyPointSalary) : '');
+    reset({
+        role: userToEdit.role,
+        status: userToEdit.status,
+        isWorker: userToEdit.isWorker || false,
+        workerDepartment: userToEdit.workerDepartment || '',
+        monthlyPointSalary: userToEdit.monthlyPointSalary !== undefined && userToEdit.monthlyPointSalary !== null ? userToEdit.monthlyPointSalary : '',
+    });
     setIsEditModalOpen(true);
   };
 
-  const handleSaveChanges = async () => {
-    if (!selectedUserForEdit || !editingRole || !editingStatus || !currentAdminUser || currentAdminUser.role !== 'admin_utama') {
-        toast({title: "Error", description: "Data tidak lengkap atau aksi tidak diizinkan.", variant: "destructive"});
+  const handleSaveChanges = async (formData: z.infer<typeof formSchema>) => {
+    if (!selectedUserForEdit || !currentAdminUser || currentAdminUser.role !== 'admin_utama') {
+        toast({title: "Error", description: "Data pengguna tidak dipilih atau aksi tidak diizinkan.", variant: "destructive"});
         return;
     }
-    if (selectedUserForEdit.uid === currentAdminUser.uid && editingRole !== 'admin_utama') {
+    if (selectedUserForEdit.uid === currentAdminUser.uid && formData.role !== 'admin_utama') {
         toast({title: "Aksi Tidak Diizinkan", description: "Admin Utama tidak dapat mengubah perannya sendiri menjadi non-admin.", variant: "destructive"});
         return;
     }
@@ -201,37 +235,44 @@ export default function UserManagementPage() {
     setIsSubmittingEdit(true);
     try {
         const userDocRef = doc(db, 'users', selectedUserForEdit.uid);
-        
-        const updatePayload: any = {
-            role: editingRole,
-            status: editingStatus,
-            isWorker: editingIsWorker,
+
+        const updatePayload: DocumentData = {
+            role: formData.role,
+            status: formData.status,
+            isWorker: formData.isWorker,
             updatedAt: serverTimestamp(),
             updatedBy: currentAdminUser.uid,
         };
 
-        if (editingIsWorker) {
-            updatePayload.workerDepartment = editingWorkerDepartment.trim() || null;
-            const salaryNumber = parseInt(editingMonthlyPointSalary, 10);
-            updatePayload.monthlyPointSalary = !isNaN(salaryNumber) ? salaryNumber : null;
+        if (formData.isWorker) {
+            updatePayload.workerDepartment = formData.workerDepartment?.trim() || null;
+            updatePayload.monthlyPointSalary = formData.monthlyPointSalary; // Already transformed by Zod
         } else {
-            updatePayload.workerDepartment = null; 
+            updatePayload.workerDepartment = null;
             updatePayload.monthlyPointSalary = null;
         }
-        
+
         await updateDoc(userDocRef, updatePayload);
 
-        if (selectedUserForEdit.role !== 'member' && editingRole === 'member' && editingStatus === 'approved') {
-            const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
-            await updateDoc(memberDocRef, { status: 'approved', lastAdminActionTimestamp: serverTimestamp() }).catch(e => console.warn("Could not update member status for", selectedUserForEdit.uid, e));
-        } else if (selectedUserForEdit.role === 'member' && editingRole !== 'member') {
-             const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
-             await updateDoc(memberDocRef, { status: 'pending', lastAdminActionTimestamp: serverTimestamp() }).catch(e => console.warn("Could not update member status for", selectedUserForEdit.uid, e));
+        // Logic for updating 'members' collection status
+        const memberDocRef = doc(db, 'members', selectedUserForEdit.uid);
+        const memberDocSnap = await getFirestoreDoc(memberDocRef); // Use getFirestoreDoc
+
+        if (selectedUserForEdit.role !== 'member' && formData.role === 'member' && formData.status === 'approved') {
+            if (memberDocSnap.exists()) {
+                await updateDoc(memberDocRef, { status: 'approved', lastAdminActionTimestamp: serverTimestamp() });
+            } else {
+                console.warn(`User ${selectedUserForEdit.uid} set to member/approved, but no corresponding document in 'members' collection found.`);
+            }
+        } else if (selectedUserForEdit.role === 'member' && formData.role !== 'member') {
+             if (memberDocSnap.exists()) {
+                await updateDoc(memberDocRef, { status: 'pending', lastAdminActionTimestamp: serverTimestamp() });
+             }
         }
 
         toast({title: "Perubahan Disimpan", description: `Data untuk ${selectedUserForEdit.displayName} telah diperbarui.`});
         setIsEditModalOpen(false);
-        fetchUsers(); 
+        fetchUsers();
     } catch(error) {
         console.error("Error updating user data:", error);
         toast({title: "Gagal Menyimpan", description: "Terjadi kesalahan.", variant: "destructive"});
@@ -254,7 +295,7 @@ export default function UserManagementPage() {
     setIsDeletingUser(true);
     try {
       await deleteDoc(doc(db, 'users', userToDelete.uid));
-      
+
       try {
         await deleteDoc(doc(db, 'members', userToDelete.uid));
       } catch (memberDeleteError) {
@@ -374,15 +415,15 @@ export default function UserManagementPage() {
                         {userDoc.isWorker && userDoc.monthlyPointSalary !== undefined && userDoc.monthlyPointSalary !== null ? userDoc.monthlyPointSalary.toLocaleString('id-ID') : '-'}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
-                      {userDoc.lastLogin instanceof Date 
-                        ? userDoc.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' }) 
+                      {userDoc.lastLogin instanceof Date
+                        ? userDoc.lastLogin.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour:'2-digit', minute:'2-digit' })
                         : typeof userDoc.lastLogin === 'string' ? userDoc.lastLogin : 'Belum Pernah'}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditUser(userDoc)} disabled={userDoc.uid === currentAdminUser.uid && userDoc.role === 'admin_utama'}>
+                      <Button variant="outline" size="sm" onClick={() => handleEditUser(userDoc)} disabled={userDoc.uid === currentAdminUser?.uid && userDoc.role === 'admin_utama'}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                       </Button>
-                      {userDoc.uid !== currentAdminUser.uid && ( 
+                      {currentAdminUser && userDoc.uid !== currentAdminUser.uid && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm" onClick={() => setUserToDelete(userDoc)} disabled={isDeletingUser}>
@@ -421,9 +462,8 @@ export default function UserManagementPage() {
       {selectedUserForEdit && (
         <Dialog open={isEditModalOpen} onOpenChange={(isOpen) => {
             if (!isOpen) {
-                setSelectedUserForEdit(null); 
-                setEditingWorkerDepartment(''); 
-                setEditingMonthlyPointSalary('');
+                setSelectedUserForEdit(null);
+                reset();
             }
             setIsEditModalOpen(isOpen);
         }}>
@@ -431,89 +471,138 @@ export default function UserManagementPage() {
             <DialogHeader>
               <DialogTitle>Edit Pengguna: {selectedUserForEdit.displayName}</DialogTitle>
               <DialogDescription>Ubah peran, status, dan detail pekerja untuk pengguna ini.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role-edit" className="text-right col-span-1">Peran</Label>
-                <Select
-                    value={editingRole}
-                    onValueChange={(value) => setEditingRole(value as UserProfile['role'])}
-                    disabled={selectedUserForEdit.uid === currentAdminUser.uid && selectedUserForEdit.role === 'admin_utama'}
-                >
-                    <SelectTrigger id="role-edit" className="col-span-3">
-                        <SelectValue placeholder="Pilih peran" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    {roleOptions.map(role => (
-                        <SelectItem key={role} value={role}>{formatRole(role)}</SelectItem>
-                    ))}
-                    </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="status-edit" className="text-right col-span-1">Status</Label>
-                <Select value={editingStatus} onValueChange={(value) => setEditingStatus(value as UserProfile['status'])}>
-                    <SelectTrigger id="status-edit" className="col-span-3">
-                        <SelectValue placeholder="Pilih status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    {statusOptions.map(status => (
-                        <SelectItem key={status} value={status}>{formatStatus(status)}</SelectItem>
-                    ))}
-                    </SelectContent>
-                </Select>
-              </div>
-               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="isWorker-edit" className="text-right col-span-1">Pekerja Koperasi</Label>
-                <div className="col-span-3 flex items-center space-x-2">
-                    <Checkbox
-                        id="isWorker-edit"
-                        checked={editingIsWorker}
-                        onCheckedChange={(checked) => setEditingIsWorker(Boolean(checked))}
-                    />
-                    <FormDescription>Tandai jika pengguna ini adalah pekerja aktif koperasi.</FormDescription>
-                </div>
-              </div>
-              {editingIsWorker && (
-                <>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="workerDepartment-edit" className="text-right col-span-1">Departemen</Label>
-                    <Input
-                      id="workerDepartment-edit"
-                      value={editingWorkerDepartment}
-                      onChange={(e) => setEditingWorkerDepartment(e.target.value)}
-                      className="col-span-3"
-                      placeholder="Cth: Keuangan, Pemasaran"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="monthlyPointSalary-edit" className="text-right col-span-1">Gaji Poin Bulanan</Label>
-                    <Input
-                      id="monthlyPointSalary-edit"
-                      type="number"
-                      value={editingMonthlyPointSalary}
-                      onChange={(e) => setEditingMonthlyPointSalary(e.target.value)}
-                      className="col-span-3"
-                      placeholder="Cth: 50000"
-                    />
-                  </div>
-                </>
-              )}
-               {selectedUserForEdit.uid === currentAdminUser.uid && selectedUserForEdit.role === 'admin_utama' && editingRole !== 'admin_utama' && (
+               {selectedUserForEdit.uid === currentAdminUser?.uid && selectedUserForEdit.role === 'admin_utama' && form.watch('role') !== 'admin_utama' && (
                     <Alert variant="destructive" className="col-span-4">
                         <ShieldAlert className="h-4 w-4" />
                         <AlertTitle>Perhatian!</AlertTitle>
                         <AlertDescription>Admin Utama tidak dapat mengubah perannya sendiri menjadi non-admin.</AlertDescription>
                     </Alert>
                 )}
-            </div>
-            <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
-              <Button onClick={handleSaveChanges} disabled={isSubmittingEdit || (selectedUserForEdit.uid === currentAdminUser.uid && selectedUserForEdit.role === 'admin_utama' && editingRole !== 'admin_utama')}>
-                {isSubmittingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Simpan Perubahan
-              </Button>
-            </DialogFooter>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={handleRHFSubmit(handleSaveChanges)} className="grid gap-4 py-4">
+
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right col-span-1">Peran</FormLabel>
+                      <FormControl className="col-span-3">
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={selectedUserForEdit.uid === currentAdminUser?.uid && selectedUserForEdit.role === 'admin_utama'}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih peran" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roleOptions.map(role => (
+                              <SelectItem key={role} value={role}>{formatRole(role)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage className="col-span-4 col-start-1 text-right" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-4 items-center gap-4">
+                      <FormLabel className="text-right col-span-1">Status</FormLabel>
+                      <FormControl className="col-span-3">
+                         <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Pilih status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            {statusOptions.map(status => (
+                                <SelectItem key={status} value={status}>{formatStatus(status)}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                      </FormControl>
+                       <FormMessage className="col-span-4 col-start-1 text-right" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                   control={form.control}
+                   name="isWorker"
+                   render={({ field }) => (
+                     <FormItem className="grid grid-cols-4 items-center gap-4">
+                       <FormLabel className="text-right col-span-1">Pekerja Koperasi</FormLabel>
+                       <div className="col-span-3 flex items-center space-x-2">
+                         <FormControl>
+                           <Checkbox
+                             checked={field.value}
+                             onCheckedChange={field.onChange}
+                           />
+                         </FormControl>
+                         <FormDescription>Tandai jika pengguna ini adalah pekerja aktif koperasi.</FormDescription>
+                       </div>
+                        <FormMessage className="col-span-4 col-start-1 text-right" />
+                     </FormItem>
+                   )}
+                 />
+
+                {editingIsWorker && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="workerDepartment"
+                      render={({ field }) => (
+                        <FormItem className="grid grid-cols-4 items-center gap-4">
+                          <FormLabel className="text-right col-span-1">Departemen</FormLabel>
+                          <FormControl className="col-span-3">
+                            <Input placeholder="Cth: Keuangan, Pemasaran" {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage className="col-span-4 col-start-1 text-right" />
+                        </FormItem>
+                      )}
+                    />
+
+                     <FormField
+                       control={form.control}
+                       name="monthlyPointSalary"
+                       render={({ field }) => (
+                         <FormItem className="grid grid-cols-4 items-center gap-4">
+                           <FormLabel className="text-right col-span-1">Gaji Poin Bulanan</FormLabel>
+                           <FormControl className="col-span-3">
+                             <Input
+                               type="number"
+                               placeholder="Cth: 50000"
+                               {...field}
+                               value={field.value !== null && field.value !== undefined ? String(field.value) : ''}
+                               onChange={e => {
+                                 const value = e.target.value;
+                                 field.onChange(value === '' ? '' : Number(value));
+                               }}
+                             />
+                           </FormControl>
+                           <FormMessage className="col-span-4 col-start-1 text-right" />
+                         </FormItem>
+                       )}
+                     />
+                  </>
+                )}
+
+
+                 <DialogFooter className="col-span-4 pt-4">
+                   <DialogClose asChild><Button type="button" variant="outline">Batal</Button></DialogClose>
+                   <Button type="submit" disabled={isSubmittingEdit || (selectedUserForEdit.uid === currentAdminUser?.uid && selectedUserForEdit.role === 'admin_utama' && getValues('role') !== 'admin_utama')}>
+                     {isSubmittingEdit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                     Simpan Perubahan
+                   </Button>
+                 </DialogFooter>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       )}
