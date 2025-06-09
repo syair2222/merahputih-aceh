@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArrowLeft, ShieldAlert, Loader2, Award, Users, Wallet, FileText } from 'lucide-react';
 import type { UserProfile, UserDocument } from '@/types';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc, increment, serverTimestamp, addDoc, Timestamp, getDoc } from 'firebase/firestore'; // Added getDoc
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
